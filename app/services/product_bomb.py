@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any
 
 from app.services.channel_renderers.coupang_renderer import CoupangContent, render_coupang
 from app.services.channel_renderers.instagram_renderer import InstagramContent, render_instagram
@@ -14,6 +14,9 @@ from app.services.channel_renderers.smart_store_renderer import (
     render_smart_store,
 )
 from app.services.product_image_analyzer import ProductAnalysis, analyze_product
+
+if TYPE_CHECKING:
+    from app.services.shopsync_publisher import ShopsyncPublishResult
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,7 @@ class ProductBombResult:
     naver_blog: NaverBlogContent | None = None
     kakao: KakaoContent | None = None
     errors: dict[str, str] = field(default_factory=dict)
+    publish_result: ShopsyncPublishResult | None = None
 
     @property
     def channels_generated(self) -> list[str]:
@@ -58,6 +62,9 @@ async def generate_product_bomb(
     image_urls: list[str] | None = None,
     product_url: str = "",
     target_platforms: list[str] | None = None,
+    auto_publish: bool = False,
+    user_id: str = "",
+    credentials: dict[str, dict[str, str]] | None = None,
 ) -> ProductBombResult:
     """
     Generate multi-channel content from product images.
@@ -71,9 +78,13 @@ async def generate_product_bomb(
         product_url: Link to the product page (used in Kakao CTA).
         target_platforms: Subset of platforms to generate for.
             Defaults to all 5 platforms.
+        auto_publish: If True, publish rendered content to channels.
+        user_id: Owner user ID (required when auto_publish=True).
+        credentials: Per-channel credentials for publishing.
 
     Returns:
-        ProductBombResult with analysis and per-channel content.
+        ProductBombResult with analysis, per-channel content, and
+        optional publish_result when auto_publish is True.
     """
     platforms = (
         _ALL_PLATFORMS
@@ -124,7 +135,7 @@ async def generate_product_bomb(
     if tasks:
         await asyncio.gather(*tasks)
 
-    return ProductBombResult(
+    result = ProductBombResult(
         analysis=analysis,
         smart_store=results.get("smart_store"),
         coupang=results.get("coupang"),
@@ -133,3 +144,18 @@ async def generate_product_bomb(
         kakao=results.get("kakao"),
         errors=errors,
     )
+
+    if auto_publish:
+        from app.services.shopsync_publisher import ShopsyncPublisher
+
+        publisher = ShopsyncPublisher()
+        channels = list(platforms) if target_platforms is None else target_platforms
+        pub_result = await publisher.publish(
+            bomb_result=result,
+            target_channels=channels,
+            user_id=user_id,
+            credentials=credentials,
+        )
+        result = replace(result, publish_result=pub_result)
+
+    return result
