@@ -28,6 +28,7 @@ from app.api.v1 import (
     webhooks,
     workspaces,
     ytboost,
+    ytboost_analytics,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -57,4 +58,5 @@ api_router.include_router(consent.router)
 api_router.include_router(legal.router)
 api_router.include_router(users.router)
 api_router.include_router(ytboost.router)
+api_router.include_router(ytboost_analytics.router)
 api_router.include_router(shopsync.router)
