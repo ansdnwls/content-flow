@@ -25,7 +25,8 @@ async def process_due_deliveries() -> dict[str, int]:
             delivered += 1
             continue
 
-        if int(delivery.get("attempts") or 0) + 1 >= MAX_DELIVERY_ATTEMPTS:
+        max_attempts = int(delivery.get("max_attempts") or MAX_DELIVERY_ATTEMPTS)
+        if int(delivery.get("attempts") or 0) + 1 >= max_attempts:
             dead_letters += 1
         else:
             failed += 1

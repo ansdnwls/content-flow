@@ -326,6 +326,7 @@ CREATE_WEBHOOK_DELIVERIES_TABLE_SQL = dedent(
         webhook_id uuid not null references public.webhooks(id) on delete cascade,
         owner_id uuid not null references public.users(id) on delete cascade,
         event text not null,
+        idempotency_key text not null,
         payload jsonb not null default '{}'::jsonb,
         status text not null default 'pending',
         attempts integer not null default 0,
@@ -339,6 +340,8 @@ CREATE_WEBHOOK_DELIVERIES_TABLE_SQL = dedent(
 
     create index if not exists idx_webhook_deliveries_webhook
         on public.webhook_deliveries(webhook_id, status);
+    create unique index if not exists idx_webhook_deliveries_idempotency_key
+        on public.webhook_deliveries(idempotency_key);
     create index if not exists idx_webhook_deliveries_retry
         on public.webhook_deliveries(status, next_retry_at)
         where status = 'pending';
