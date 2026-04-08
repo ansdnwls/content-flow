@@ -1,0 +1,11 @@
+{
+  "name": "shopsync",
+  "builds": [
+    { "src": "landing/package.json", "use": "@vercel/next" },
+    { "src": "dashboard/package.json", "use": "@vercel/next" }
+  ],
+  "routes": [
+    { "src": "/app/(.*)", "dest": "/dashboard/$1" },
+    { "src": "/(.*)", "dest": "/landing/$1" }
+  ]
+}

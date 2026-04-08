@@ -1,0 +1,74 @@
+name: Deploy Vertical
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'verticals/**'
+      - '!verticals/_template/**'
+
+concurrency:
+  group: deploy-vertical-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed verticals
+        id: set-matrix
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- verticals/ | \
+            grep -v '_template' | \
+            cut -d'/' -f2 | \
+            sort -u | \
+            jq -R -s 'split("\n") | map(select(length > 0))')
+          echo "matrix=${CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "Changed verticals: ${CHANGED}"
+
+  deploy:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        vertical: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: verticals/${{ matrix.vertical }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Build landing
+        working-directory: verticals/${{ matrix.vertical }}/landing
+        run: pnpm build
+
+      - name: Build dashboard
+        working-directory: verticals/${{ matrix.vertical }}/dashboard
+        run: pnpm build
+
+      - name: Deploy to Vercel
+        if: env.VERCEL_TOKEN != ''
+        working-directory: verticals/${{ matrix.vertical }}
+        run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

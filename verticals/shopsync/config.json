@@ -1,0 +1,124 @@
+{
+  "$schema": "../../packages/cf-config/schema.json",
+  "id": "shopsync",
+  "name": "ShopSync",
+  "tagline": "Sell more by posting everywhere automatically",
+  "description": "The social commerce autopilot for online sellers. Turn product listings into engaging posts across every platform.",
+
+  "brand": {
+    "logo": "./assets/logo.svg",
+    "favicon": "./assets/favicon.ico",
+    "colors": {
+      "primary": "#FF8C00",
+      "secondary": "#1A1205",
+      "accent": "#FFD700",
+      "bg": "#0D0B07",
+      "text": "#FFF8F0"
+    },
+    "font": {
+      "display": "Inter",
+      "body": "Inter",
+      "mono": "JetBrains Mono"
+    }
+  },
+
+  "domain": {
+    "primary": "shopsync.kr",
+    "api": "api.shopsync.kr",
+    "docs": "docs.shopsync.kr"
+  },
+
+  "target": {
+    "persona": "Ecommerce sellers on Naver SmartStore, Coupang, and 11st",
+    "pain_points": [
+      "Manually posting product updates to 5+ platforms is exhausting",
+      "Price changes need to be synced everywhere instantly",
+      "Low stock items need urgent promotion across channels"
+    ],
+    "language": ["ko", "en"],
+    "region": ["KR"]
+  },
+
+  "pricing": {
+    "currency": "KRW",
+    "plans": [
+      {
+        "id": "free",
+        "name": "Free",
+        "price_monthly": 0,
+        "features": ["10 products", "3 platforms", "Manual posting"]
+      },
+      {
+        "id": "seller",
+        "name": "Seller",
+        "price_monthly": 49000,
+        "features": ["100 products", "All platforms", "Auto posting", "Inventory alerts"]
+      },
+      {
+        "id": "enterprise",
+        "name": "Enterprise",
+        "price_monthly": 99000,
+        "features": ["Unlimited products", "AI product copy", "Price sync", "White-label", "Priority support"]
+      }
+    ]
+  },
+
+  "features": {
+    "core": [
+      "product_to_copy",
+      "inventory_sync",
+      "price_change_notifier",
+      "multi_platform_distribution"
+    ],
+    "platforms_enabled": [
+      "instagram", "facebook", "naver_blog", "tistory", "kakao", "x", "threads"
+    ],
+    "platforms_hero": [
+      "instagram", "naver_blog", "kakao"
+    ],
+    "hide": [
+      "youtube", "tiktok", "shorts", "videos"
+    ]
+  },
+
+  "landing": {
+    "hero": {
+      "headline": "Sell more. Post less.",
+      "sub": "Your products automatically become engaging posts on every platform.",
+      "cta_primary": "Start free",
+      "cta_secondary": "See how it works"
+    },
+    "sections": [
+      "hero",
+      "how_it_works",
+      "platforms",
+      "features",
+      "pricing",
+      "faq",
+      "cta_footer"
+    ]
+  },
+
+  "dashboard": {
+    "home_widgets": [
+      "shop_inventory",
+      "price_alerts",
+      "distribution_map",
+      "analytics_overview"
+    ],
+    "nav": [
+      "home",
+      "products",
+      "inventory",
+      "distribution",
+      "analytics",
+      "settings"
+    ],
+    "onboarding_steps": [
+      "connect_shop",
+      "import_products",
+      "connect_platform",
+      "set_auto_posting"
+    ]
+  }
+}

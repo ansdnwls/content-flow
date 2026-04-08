@@ -1,0 +1,126 @@
+{
+  "$schema": "../../packages/cf-config/schema.json",
+  "id": "ytboost",
+  "name": "YtBoost",
+  "tagline": "Turn 1 YouTube video into 18 pieces of content",
+  "description": "The ultimate amplifier for YouTube creators. Upload one video and automatically distribute shorts, reels, and threads across every platform.",
+
+  "brand": {
+    "logo": "./assets/logo.svg",
+    "favicon": "./assets/favicon.ico",
+    "colors": {
+      "primary": "#FF0000",
+      "secondary": "#282828",
+      "accent": "#00D4AA",
+      "bg": "#0F0F0F",
+      "text": "#FFFFFF"
+    },
+    "font": {
+      "display": "Inter",
+      "body": "Inter",
+      "mono": "JetBrains Mono"
+    }
+  },
+
+  "domain": {
+    "primary": "ytboost.dev",
+    "api": "api.ytboost.dev",
+    "docs": "docs.ytboost.dev"
+  },
+
+  "target": {
+    "persona": "YouTube creators with 1K-100K subscribers",
+    "pain_points": [
+      "Shooting one video takes hours, posting it everywhere takes more",
+      "Need shorts for multiple platforms but editing each one manually",
+      "Can't manually manage comments on 5 platforms"
+    ],
+    "language": ["en", "ko"],
+    "region": ["US", "KR", "global"]
+  },
+
+  "pricing": {
+    "currency": "USD",
+    "plans": [
+      {
+        "id": "starter",
+        "name": "Starter",
+        "price_monthly": 0,
+        "features": ["1 YouTube channel", "Auto shorts from 1 video/mo", "3 platforms"]
+      },
+      {
+        "id": "creator",
+        "name": "Creator",
+        "price_monthly": 29,
+        "features": ["3 YouTube channels", "Unlimited auto shorts", "All 18 platforms", "Comment autopilot"]
+      },
+      {
+        "id": "studio",
+        "name": "Studio",
+        "price_monthly": 99,
+        "features": ["Unlimited channels", "AI video generation", "Viral score", "White-label"]
+      }
+    ]
+  },
+
+  "features": {
+    "core": [
+      "youtube_upload_trigger",
+      "auto_shorts_extraction",
+      "multi_platform_distribution",
+      "comment_autopilot"
+    ],
+    "platforms_enabled": [
+      "youtube", "tiktok", "instagram", "x", "threads", "facebook"
+    ],
+    "platforms_hero": [
+      "youtube", "tiktok", "instagram"
+    ],
+    "hide": [
+      "naver_blog", "tistory", "kakao", "products", "inventory"
+    ]
+  },
+
+  "landing": {
+    "hero": {
+      "headline": "Upload once. Ship everywhere.",
+      "sub": "Your YouTube video becomes 18 pieces of content automatically.",
+      "cta_primary": "Start free",
+      "cta_secondary": "Watch demo"
+    },
+    "sections": [
+      "hero",
+      "how_it_works",
+      "platforms",
+      "features",
+      "pricing",
+      "testimonials",
+      "faq",
+      "cta_footer"
+    ]
+  },
+
+  "dashboard": {
+    "home_widgets": [
+      "youtube_channel_stats",
+      "recent_shorts_generated",
+      "distribution_map",
+      "viral_score_trending"
+    ],
+    "nav": [
+      "home",
+      "videos",
+      "shorts",
+      "distribution",
+      "comments",
+      "analytics",
+      "settings"
+    ],
+    "onboarding_steps": [
+      "connect_youtube",
+      "connect_2nd_platform",
+      "set_auto_distribution",
+      "first_upload_trigger"
+    ]
+  }
+}

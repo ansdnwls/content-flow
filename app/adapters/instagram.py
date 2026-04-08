@@ -2,17 +2,55 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
-GRAPH_API = "https://graph.facebook.com/v19.0"
+GRAPH_API = "https://graph.facebook.com/v21.0"
 
 
 class InstagramAdapter(PlatformAdapter):
     platform_name = "instagram"
+
+    async def _wait_for_container_ready(
+        self,
+        client: httpx.AsyncClient,
+        container_id: str,
+        token: str,
+        *,
+        attempts: int = 5,
+        interval_seconds: float = 1.0,
+    ) -> str | None:
+        last_status: str | None = None
+
+        for attempt in range(attempts):
+            resp = await client.get(
+                f"{GRAPH_API}/{container_id}",
+                params={"fields": "status_code", "access_token": token},
+            )
+            if resp.status_code != 200:
+                return resp.text
+
+            last_status = resp.json().get("status_code")
+            if last_status in {"FINISHED", "PUBLISHED"}:
+                return None
+            if last_status in {"ERROR", "EXPIRED"}:
+                return f"Container status: {last_status}"
+            if attempt < attempts - 1:
+                await asyncio.sleep(interval_seconds)
+
+        return f"Container status: {last_status or 'UNKNOWN'}"
 
     async def publish(
         self,
@@ -59,6 +97,10 @@ class InstagramAdapter(PlatformAdapter):
             return PublishResult(success=False, error=resp.text)
 
         container_id = resp.json()["id"]
+
+        status_error = await self._wait_for_container_ready(client, container_id, token)
+        if status_error:
+            return PublishResult(success=False, error=status_error)
 
         # Step 2: Publish
         pub_resp = await client.post(
@@ -108,6 +150,9 @@ class InstagramAdapter(PlatformAdapter):
             return PublishResult(success=False, error=resp.text)
 
         container_id = resp.json()["id"]
+        status_error = await self._wait_for_container_ready(client, container_id, token)
+        if status_error:
+            return PublishResult(success=False, error=status_error)
         pub_resp = await client.post(
             f"{GRAPH_API}/{ig_user_id}/media_publish",
             params={"creation_id": container_id, "access_token": token},
@@ -128,6 +173,9 @@ class InstagramAdapter(PlatformAdapter):
             return PublishResult(success=False, error=resp.text)
 
         container_id = resp.json()["id"]
+        status_error = await self._wait_for_container_ready(client, container_id, token)
+        if status_error:
+            return PublishResult(success=False, error=status_error)
         pub_resp = await client.post(
             f"{GRAPH_API}/{ig_user_id}/media_publish",
             params={"creation_id": container_id, "access_token": token},
@@ -152,3 +200,137 @@ class InstagramAdapter(PlatformAdapter):
                 params={"access_token": credentials["access_token"]},
             )
             return resp.status_code == 200
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        access_token = credentials["access_token"]
+        comments: list[Comment] = []
+
+        async with httpx.AsyncClient() as client:
+            url = f"{GRAPH_API}/{platform_post_id}/comments"
+            params: dict[str, str] = {
+                "fields": "id,from,text,timestamp",
+                "access_token": access_token,
+            }
+            if since:
+                params["since"] = str(int(since.timestamp()))
+
+            while url:
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    break
+
+                data = resp.json()
+                for item in data.get("data", []):
+                    created = datetime.fromisoformat(
+                        item["timestamp"].replace("Z", "+00:00"),
+                    )
+                    from_data = item.get("from", {})
+                    comments.append(
+                        Comment(
+                            platform_comment_id=item["id"],
+                            author_id=from_data.get("id", ""),
+                            author_name=from_data.get("username", ""),
+                            text=item.get("text", ""),
+                            created_at=created,
+                            parent_id=None,
+                            raw=item,
+                        )
+                    )
+
+                paging = data.get("paging", {})
+                url = paging.get("next", "")
+                params = {}
+
+        return comments
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        access_token = credentials["access_token"]
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{GRAPH_API}/{comment_id}/replies",
+                params={
+                    "message": text,
+                    "access_token": access_token,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return ReplyResult(
+                    success=True,
+                    platform_comment_id=data.get("id"),
+                )
+            return ReplyResult(success=False, error=resp.text)
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        access_token = credentials["access_token"]
+        ig_user_id = credentials.get("ig_user_id", "me")
+        results: list[AnalyticsData] = []
+        async with httpx.AsyncClient() as client:
+            if platform_post_id:
+                resp = await client.get(
+                    f"{GRAPH_API}/{platform_post_id}/insights",
+                    params={
+                        "metric": "impressions,reach,likes,comments,"
+                        "shares,saved",
+                        "access_token": access_token,
+                    },
+                )
+                if resp.status_code == 200:
+                    metrics: dict[str, int] = {}
+                    for entry in resp.json().get("data", []):
+                        name = entry.get("name", "")
+                        vals = entry.get("values", [{}])
+                        metrics[name] = vals[0].get("value", 0)
+                    impressions = metrics.get("impressions", 0)
+                    reach = metrics.get("reach", 0)
+                    likes = metrics.get("likes", 0)
+                    comments = metrics.get("comments", 0)
+                    shares = metrics.get("shares", 0)
+                    total = impressions if impressions > 0 else 1
+                    results.append(AnalyticsData(
+                        platform="instagram",
+                        platform_post_id=platform_post_id,
+                        views=impressions,
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        impressions=impressions,
+                        reach=reach,
+                        engagement_rate=round(
+                            (likes + comments + shares)
+                            / total * 100,
+                            2,
+                        ),
+                        raw=metrics,
+                    ))
+            else:
+                resp = await client.get(
+                    f"{GRAPH_API}/{ig_user_id}",
+                    params={
+                        "fields": "followers_count,media_count",
+                        "access_token": access_token,
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results.append(AnalyticsData(
+                        platform="instagram",
+                        followers=data.get("followers_count", 0),
+                        raw=data,
+                    ))
+        return results

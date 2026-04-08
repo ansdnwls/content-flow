@@ -1,0 +1,13 @@
+<svg width="1200" height="600" viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="600" rx="36" fill="#120A14"/>
+  <text x="70" y="92" fill="#FFD23F" font-family="Arial" font-size="22" font-weight="700" letter-spacing="4">PLATFORM COVERAGE</text>
+  <text x="70" y="162" fill="#FFF6EF" font-family="Arial" font-size="68" font-weight="800">Not just the usual suspects.</text>
+  <g transform="translate(70 220)">
+    <rect width="180" height="110" rx="24" fill="#1C121B" stroke="#3B2327"/><text x="28" y="44" fill="#FF6B35" font-family="Arial" font-size="24" font-weight="700">YT</text><text x="28" y="82" fill="#FFF6EF" font-family="Arial" font-size="28" font-weight="700">YouTube</text>
+    <rect x="206" width="180" height="110" rx="24" fill="#1C121B" stroke="#3B2327"/><text x="234" y="44" fill="#FFD23F" font-family="Arial" font-size="24" font-weight="700">KK</text><text x="234" y="82" fill="#FFF6EF" font-family="Arial" font-size="28" font-weight="700">Kakao</text>
+    <rect x="412" width="180" height="110" rx="24" fill="#1C121B" stroke="#3B2327"/><text x="440" y="44" fill="#06FFA5" font-family="Arial" font-size="24" font-weight="700">NB</text><text x="440" y="82" fill="#FFF6EF" font-family="Arial" font-size="28" font-weight="700">Naver</text>
+    <rect x="618" width="180" height="110" rx="24" fill="#1C121B" stroke="#3B2327"/><text x="646" y="44" fill="#FFF6EF" font-family="Arial" font-size="24" font-weight="700">TH</text><text x="646" y="82" fill="#FFF6EF" font-family="Arial" font-size="28" font-weight="700">Threads</text>
+    <rect x="824" width="180" height="110" rx="24" fill="#1C121B" stroke="#3B2327"/><text x="852" y="44" fill="#06FFA5" font-family="Arial" font-size="24" font-weight="700">LN</text><text x="852" y="82" fill="#FFF6EF" font-family="Arial" font-size="28" font-weight="700">LINE</text>
+  </g>
+  <text x="70" y="530" fill="#D3C1B6" font-family="Arial" font-size="28">KR + JP endpoints included. No regional blind spots.</text>
+</svg>

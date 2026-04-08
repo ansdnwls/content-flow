@@ -1,0 +1,11 @@
+<svg width="1200" height="600" viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="600" rx="36" fill="#120A14"/>
+  <text x="70" y="94" fill="#FFD23F" font-family="Arial" font-size="22" font-weight="700" letter-spacing="4">PRICING</text>
+  <text x="70" y="162" fill="#FFF6EF" font-family="Arial" font-size="68" font-weight="800">From $0 to Enterprise.</text>
+  <g transform="translate(70 222)">
+    <rect width="234" height="260" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="26" y="54" fill="#FFF6EF" font-family="Arial" font-size="34" font-weight="700">Free</text><text x="26" y="118" fill="#FFF6EF" font-family="Arial" font-size="58" font-weight="800">$0</text>
+    <rect x="254" width="234" height="260" rx="28" fill="#23161E" stroke="#FFD23F"/><text x="280" y="54" fill="#FFF6EF" font-family="Arial" font-size="34" font-weight="700">Build</text><text x="280" y="118" fill="#FFF6EF" font-family="Arial" font-size="58" font-weight="800">$39</text>
+    <rect x="508" width="234" height="260" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="534" y="54" fill="#FFF6EF" font-family="Arial" font-size="34" font-weight="700">Scale</text><text x="534" y="118" fill="#FFF6EF" font-family="Arial" font-size="58" font-weight="800">$129</text>
+    <rect x="762" width="234" height="260" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="788" y="54" fill="#FFF6EF" font-family="Arial" font-size="34" font-weight="700">Enterprise</text><text x="788" y="118" fill="#FFF6EF" font-family="Arial" font-size="58" font-weight="800">Custom</text>
+  </g>
+</svg>

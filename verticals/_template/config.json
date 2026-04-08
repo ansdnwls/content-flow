@@ -1,0 +1,118 @@
+{
+  "$schema": "../../packages/cf-config/schema.json",
+  "id": "template",
+  "name": "Template",
+  "tagline": "Your tagline here",
+  "description": "Description of your vertical product.",
+
+  "brand": {
+    "logo": "./assets/logo.svg",
+    "favicon": "./assets/favicon.ico",
+    "colors": {
+      "primary": "#6366F1",
+      "secondary": "#1E1B4B",
+      "accent": "#06B6D4",
+      "bg": "#0F172A",
+      "text": "#F8FAFC"
+    },
+    "font": {
+      "display": "Inter",
+      "body": "Inter",
+      "mono": "JetBrains Mono"
+    }
+  },
+
+  "domain": {
+    "primary": "example.com",
+    "api": "api.example.com",
+    "docs": "docs.example.com"
+  },
+
+  "target": {
+    "persona": "Your target audience",
+    "pain_points": [
+      "Pain point 1",
+      "Pain point 2",
+      "Pain point 3"
+    ],
+    "language": ["en", "ko"],
+    "region": ["global"]
+  },
+
+  "pricing": {
+    "currency": "USD",
+    "plans": [
+      {
+        "id": "free",
+        "name": "Free",
+        "price_monthly": 0,
+        "features": ["Feature 1", "Feature 2", "Feature 3"]
+      },
+      {
+        "id": "pro",
+        "name": "Pro",
+        "price_monthly": 29,
+        "features": ["Everything in Free", "Feature 4", "Feature 5", "Feature 6"]
+      },
+      {
+        "id": "business",
+        "name": "Business",
+        "price_monthly": 99,
+        "features": ["Everything in Pro", "Feature 7", "Feature 8", "Feature 9"]
+      }
+    ]
+  },
+
+  "features": {
+    "core": [
+      "multi_platform_distribution",
+      "ai_content_generation",
+      "analytics_dashboard"
+    ],
+    "platforms_enabled": [
+      "youtube", "tiktok", "instagram", "x", "facebook"
+    ],
+    "platforms_hero": [
+      "youtube", "tiktok", "instagram"
+    ],
+    "hide": []
+  },
+
+  "landing": {
+    "hero": {
+      "headline": "Your headline here",
+      "sub": "Your subheadline here",
+      "cta_primary": "Get started free",
+      "cta_secondary": "Watch demo"
+    },
+    "sections": [
+      "hero",
+      "how_it_works",
+      "platforms",
+      "features",
+      "pricing",
+      "faq",
+      "cta_footer"
+    ]
+  },
+
+  "dashboard": {
+    "home_widgets": [
+      "distribution_map",
+      "recent_posts",
+      "analytics_overview"
+    ],
+    "nav": [
+      "home",
+      "posts",
+      "analytics",
+      "accounts",
+      "settings"
+    ],
+    "onboarding_steps": [
+      "connect_platform",
+      "create_first_post",
+      "set_auto_distribution"
+    ]
+  }
+}

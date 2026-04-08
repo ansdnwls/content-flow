@@ -1,0 +1,69 @@
+---
+title: Go SDK
+description: Install, initialize, and use the ContentFlow Go SDK.
+---
+
+# Go SDK
+
+## Install
+
+```bash
+go get github.com/ansdnwls/content-flow/sdk/go
+```
+
+## Initialize
+
+```go
+import (
+  cf "github.com/ansdnwls/content-flow/sdk/go/contentflow"
+)
+
+client := cf.New("cf_live_replace_me")
+```
+
+## Common methods
+
+```go
+ctx := context.Background()
+text := "Launch note is live."
+
+post, err := client.Posts.Create(ctx, &cf.CreatePostRequest{
+  Text:      &text,
+  Platforms: []string{"wordpress", "medium"},
+  MediaType: "text",
+})
+
+if err != nil {
+  log.Fatal(err)
+}
+
+fmt.Println(post.ID, post.Status)
+```
+
+## Error handling
+
+```go
+post, err := client.Posts.Get(ctx, "post_123")
+if err != nil {
+  var authErr *cf.AuthError
+  var rateErr *cf.RateLimitError
+  var apiErr *cf.APIError
+
+  switch {
+  case errors.As(err, &authErr):
+    log.Println("invalid API key")
+  case errors.As(err, &rateErr):
+    log.Println("retry after", rateErr.RetryAfter)
+  case errors.As(err, &apiErr):
+    log.Println("api error", apiErr.StatusCode, apiErr.Detail)
+  default:
+    log.Println("request failed", err)
+  }
+}
+```
+
+## Use cases
+
+- Services with long-running workers
+- CLI tools
+- Internal platform integrations

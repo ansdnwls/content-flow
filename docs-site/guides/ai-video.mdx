@@ -1,0 +1,52 @@
+---
+title: AI video
+description: Queue AI video generation jobs and optionally auto-publish the result.
+---
+
+# AI video
+
+ContentFlow can queue video generation jobs and then publish the result to connected channels once rendering is complete.
+
+## Generate a job
+
+```bash
+curl -X POST https://contentflow-api.railway.app/api/v1/videos/generate \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: cf_live_replace_me" \
+  -d '{
+    "topic": "What changed in the April release",
+    "mode": "product",
+    "language": "en",
+    "format": "shorts",
+    "style": "realistic",
+    "auto_publish": {
+      "enabled": true,
+      "platforms": ["youtube", "tiktok"]
+    }
+  }'
+```
+
+## Check generation status
+
+```bash
+curl https://contentflow-api.railway.app/api/v1/videos/{video_id} \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+## Templates
+
+Use built-in or custom templates to control scene layout, caption style, voice tone, and background music mood.
+
+- `GET /api/v1/videos/templates`
+- `GET /api/v1/videos/templates/{template_id}`
+- `POST /api/v1/videos/templates`
+
+## When to use auto-publish
+
+Auto-publish is useful when:
+
+- The destination accounts are already connected
+- Your packaging rules are stable
+- You want render-to-publish to run without manual review
+
+Disable it when your team wants to inspect the rendered output URL before distribution.

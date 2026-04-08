@@ -1,0 +1,132 @@
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #ff6b35;
+  --color-primary-rgb: 255 107 53;
+  --color-primary-strong: #ff7f50;
+  --color-secondary: #ffd23f;
+  --color-secondary-rgb: 255 210 63;
+  --color-accent: #06ffa5;
+  --color-accent-rgb: 6 255 165;
+  --color-accent-soft: rgba(6, 255, 165, 0.14);
+
+  --color-bg: #120a14;
+  --color-bg-rgb: 18 10 20;
+  --color-bg-elevated: rgba(31, 18, 27, 0.84);
+  --color-bg-elevated-rgb: 31 18 27;
+  --color-bg-panel: rgba(20, 12, 22, 0.94);
+  --color-bg-panel-rgb: 20 12 22;
+  --color-bg-soft: rgba(255, 255, 255, 0.045);
+  --color-bg-soft-rgb: 255 255 255;
+
+  --color-text: #fff6ef;
+  --color-text-rgb: 255 246 239;
+  --color-text-muted: #d3c1b6;
+  --color-text-muted-rgb: 211 193 182;
+  --color-text-soft: #9d8578;
+  --color-text-soft-rgb: 157 133 120;
+
+  --color-border: rgba(255, 173, 129, 0.18);
+  --color-border-rgb: 255 173 129;
+  --color-border-strong: rgba(255, 202, 117, 0.34);
+  --color-border-strong-rgb: 255 202 117;
+
+  --color-success: #06ffa5;
+  --color-success-rgb: 6 255 165;
+  --color-warning: #ffd23f;
+  --color-warning-rgb: 255 210 63;
+  --color-danger: #ff6f7d;
+  --color-danger-rgb: 255 111 125;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-xl: 40px;
+  --radius-pill: 999px;
+
+  --font-display: var(--font-display), "Bricolage Grotesque", sans-serif;
+  --font-body: var(--font-body), "Manrope", sans-serif;
+  --font-mono: var(--font-mono), "IBM Plex Mono", monospace;
+
+  --text-12: 12px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-24: 24px;
+  --text-32: 32px;
+  --text-48: 48px;
+  --text-64: 64px;
+  --text-96: 96px;
+
+  --line-tight: 0.94;
+  --line-heading: 1.05;
+  --line-copy: 1.65;
+
+  --tracking-tightest: -0.06em;
+  --tracking-tight: -0.03em;
+  --tracking-meta: 0.14em;
+
+  --shadow-glow: 0 0 0 1px rgba(255, 210, 63, 0.05), 0 24px 80px rgba(255, 107, 53, 0.22);
+  --shadow-panel: 0 24px 70px rgba(7, 4, 9, 0.45);
+  --shadow-card: 0 14px 40px rgba(0, 0, 0, 0.3);
+
+  --gradient-brand: linear-gradient(135deg, #ff6b35 0%, #ffd23f 52%, #06ffa5 100%);
+  --gradient-primary: linear-gradient(135deg, #ff6b35 0%, #ff9e54 100%);
+  --gradient-panel: linear-gradient(180deg, rgba(39, 23, 31, 0.96), rgba(20, 12, 22, 0.92));
+  --gradient-grid: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-snappy: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --duration-fast: 160ms;
+  --duration-base: 240ms;
+  --duration-slow: 420ms;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: #fff8f2;
+  --color-bg-rgb: 255 248 242;
+  --color-bg-elevated: rgba(255, 248, 242, 0.88);
+  --color-bg-elevated-rgb: 255 248 242;
+  --color-bg-panel: rgba(255, 252, 249, 0.95);
+  --color-bg-panel-rgb: 255 252 249;
+  --color-bg-soft: rgba(255, 107, 53, 0.06);
+  --color-bg-soft-rgb: 255 107 53;
+
+  --color-text: #291815;
+  --color-text-rgb: 41 24 21;
+  --color-text-muted: #6f5048;
+  --color-text-muted-rgb: 111 80 72;
+  --color-text-soft: #8f6d65;
+  --color-text-soft-rgb: 143 109 101;
+
+  --color-border: rgba(185, 104, 72, 0.18);
+  --color-border-rgb: 185 104 72;
+  --color-border-strong: rgba(255, 166, 89, 0.3);
+  --color-border-strong-rgb: 255 166 89;
+
+  --shadow-glow: 0 0 0 1px rgba(255, 210, 63, 0.04), 0 24px 80px rgba(255, 107, 53, 0.12);
+  --shadow-panel: 0 24px 60px rgba(180, 105, 55, 0.12);
+  --shadow-card: 0 12px 30px rgba(111, 80, 72, 0.1);
+
+  --gradient-panel: linear-gradient(180deg, rgba(255, 253, 251, 0.98), rgba(255, 244, 238, 0.96));
+  --gradient-grid: linear-gradient(rgba(41, 24, 21, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(41, 24, 21, 0.05) 1px, transparent 1px);
+}

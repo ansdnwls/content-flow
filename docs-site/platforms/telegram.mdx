@@ -1,0 +1,30 @@
+---
+title: Telegram
+description: Publish Telegram updates through ContentFlow.
+---
+
+# Telegram
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Telegram](https://cdn.simpleicons.org/telegram/26A5E4) |
+| Supported content types | Text, image, video, channel updates |
+| OAuth support in ContentFlow | Not required |
+| OAuth scopes | Bot token or channel credential flow |
+| Main limitation | Delivery depends on bot permissions and target channel access |
+
+## Notes
+
+- Telegram is well suited to announcement channels and community broadcast flows.
+- Treat it as a token-based destination rather than a user OAuth flow.
+- Media posts work well for release notes and ops updates.
+
+## Example
+
+```json
+{
+  "text": "The release train has shipped.",
+  "platforms": ["telegram"],
+  "media_type": "text"
+}
+```

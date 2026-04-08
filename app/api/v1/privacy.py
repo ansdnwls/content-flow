@@ -1,0 +1,615 @@
+"""GDPR Data Rights API — Art. 15-21 user privacy endpoints."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+
+from app.api.deps import AuthenticatedUser, get_current_user
+from app.api.error_responses import COMMON_RESPONSES
+from app.core.audit import record_audit
+from app.core.db import get_supabase
+from app.core.errors import NotFoundError
+from app.services.billing_service import cancel_subscription
+
+router = APIRouter(
+    prefix="/privacy",
+    tags=["Privacy (GDPR)"],
+    responses=COMMON_RESPONSES,
+)
+CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+
+GRACE_PERIOD_DAYS = 14
+EXPORT_LINK_TTL_HOURS = 24
+OBJECTABLE_PURPOSES = frozenset({
+    "analytics",
+    "marketing",
+    "third_party_sharing",
+    "cookies_functional",
+    "cookies_analytics",
+})
+
+
+# -- Response models --------------------------------------------------------
+
+
+class UserDataResponse(BaseModel):
+    profile: dict[str, Any]
+    posts: list[dict[str, Any]] = Field(default_factory=list)
+    posts_count: int
+    video_jobs: list[dict[str, Any]] = Field(default_factory=list)
+    video_jobs_count: int
+    social_accounts: list[dict[str, Any]]
+    analytics_snapshots: list[dict[str, Any]] = Field(default_factory=list)
+    payment_summary: dict[str, Any]
+    audit_logs: list[dict[str, Any]] = Field(default_factory=list)
+    audit_logs_count: int
+    notification_preferences: dict[str, Any] = Field(default_factory=dict)
+    consents: list[dict[str, Any]]
+
+
+class ProfileUpdateRequest(BaseModel):
+    full_name: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=320)
+
+
+class ProfileUpdateResponse(BaseModel):
+    updated: bool
+    fields: list[str]
+
+
+class ExportResponse(BaseModel):
+    export_id: str
+    message: str
+    status: str
+    format: str
+    requested_at: str
+    expires_at: str
+    summary: dict[str, int] = Field(default_factory=dict)
+
+
+class ExportRequest(BaseModel):
+    format: Literal["json", "zip"] = "json"
+
+
+class DeletionResponse(BaseModel):
+    message: str
+    scheduled_for: str | None = None
+    grace_period_days: int = GRACE_PERIOD_DAYS
+
+
+class DeletionCancelResponse(BaseModel):
+    message: str
+    cancelled: bool
+
+
+class RestrictionResponse(BaseModel):
+    message: str
+    restricted: bool
+
+
+class ObjectionResponse(BaseModel):
+    message: str
+    objected_purposes: list[str]
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+def _sanitize_social_account(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in row.items()
+        if key not in {"encrypted_access_token", "encrypted_refresh_token"}
+    }
+
+
+def _get_notification_preferences(sb, user_id: str) -> dict[str, Any]:
+    result = (
+        sb.table("notification_preferences")
+        .select(
+            "product_updates, billing, security, monthly_summary, webhook_alerts",
+        )
+        .eq("user_id", user_id)
+        .maybe_single()
+        .execute()
+    )
+    return result.data or {}
+
+
+def _upsert_notification_preferences(sb, user_id: str, updates: dict[str, Any]) -> None:
+    current = _get_notification_preferences(sb, user_id)
+    current.update({"user_id": user_id, **updates})
+    sb.table("notification_preferences").upsert(
+        current,
+        on_conflict="user_id",
+    ).execute()
+
+
+def _build_export_bundle(user_id: str) -> dict[str, Any]:
+    sb = get_supabase()
+    user_row = (
+        sb.table("users")
+        .select("*")
+        .eq("id", user_id)
+        .single()
+        .execute()
+        .data
+    )
+    posts = sb.table("posts").select("*").eq("owner_id", user_id).execute().data
+    videos = sb.table("video_jobs").select("*").eq("owner_id", user_id).execute().data
+    social_accounts = (
+        sb.table("social_accounts")
+        .select("*")
+        .eq("owner_id", user_id)
+        .execute()
+        .data
+    )
+    analytics = (
+        sb.table("analytics_snapshots")
+        .select("*")
+        .eq("owner_id", user_id)
+        .execute()
+        .data
+    )
+    payments = sb.table("payments").select("*").eq("user_id", user_id).execute().data
+    audit_logs = sb.table("audit_logs").select("*").eq("user_id", user_id).execute().data
+    notifications = _get_notification_preferences(sb, user_id)
+    consents = sb.table("consents").select("*").eq("user_id", user_id).execute().data
+    subscription_events = (
+        sb.table("subscription_events")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
+
+    return {
+        "profile": user_row,
+        "posts": posts,
+        "video_jobs": videos,
+        "social_accounts": [_sanitize_social_account(row) for row in social_accounts],
+        "analytics_snapshots": analytics,
+        "payments": payments,
+        "audit_logs": audit_logs,
+        "notification_preferences": notifications,
+        "consents": consents,
+        "subscription_events": subscription_events,
+    }
+
+
+def _build_export_summary(bundle: dict[str, Any]) -> dict[str, int]:
+    return {
+        "posts": len(bundle["posts"]),
+        "video_jobs": len(bundle["video_jobs"]),
+        "social_accounts": len(bundle["social_accounts"]),
+        "analytics_snapshots": len(bundle["analytics_snapshots"]),
+        "payments": len(bundle["payments"]),
+        "audit_logs": len(bundle["audit_logs"]),
+        "consents": len(bundle["consents"]),
+        "subscription_events": len(bundle["subscription_events"]),
+    }
+
+
+# -- Endpoints --------------------------------------------------------------
+
+
+@router.get(
+    "/me",
+    response_model=UserDataResponse,
+    summary="Right to Access (Art. 15)",
+)
+async def get_my_data(user: CurrentUser, request: Request) -> UserDataResponse:
+    """Return all personal data held for the authenticated user."""
+    sb = get_supabase()
+
+    user_row = (
+        sb.table("users")
+        .select("id, email, full_name, plan, is_active, created_at")
+        .eq("id", user.id)
+        .single()
+        .execute()
+    ).data
+
+    posts = sb.table("posts").select("*").eq("owner_id", user.id).execute().data
+    videos = sb.table("video_jobs").select("*").eq("owner_id", user.id).execute().data
+
+    socials_raw = (
+        sb.table("social_accounts")
+        .select("*")
+        .eq("owner_id", user.id)
+        .execute()
+    ).data
+    socials = [_sanitize_social_account(row) for row in socials_raw]
+    analytics = (
+        sb.table("analytics_snapshots")
+        .select("*")
+        .eq("owner_id", user.id)
+        .execute()
+        .data
+    )
+    payments = sb.table("payments").select("*").eq("user_id", user.id).execute().data
+    audits = (
+        sb.table("audit_logs")
+        .select("action, resource, created_at, ip, metadata")
+        .eq("user_id", user.id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    consents = (
+        sb.table("consents")
+        .select("purpose, granted, granted_at, revoked_at, version")
+        .eq("user_id", user.id)
+        .execute()
+    ).data
+    notification_preferences = _get_notification_preferences(sb, user.id)
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.access",
+        resource="privacy",
+        ip=_client_ip(request),
+    )
+
+    return UserDataResponse(
+        profile=user_row,
+        posts=posts,
+        posts_count=len(posts),
+        video_jobs=videos,
+        video_jobs_count=len(videos),
+        social_accounts=socials,
+        analytics_snapshots=analytics,
+        payment_summary={
+            "count": len(payments),
+            "total_amount": sum(int(payment.get("amount", 0) or 0) for payment in payments),
+            "currencies": sorted({payment.get("currency", "usd") for payment in payments}),
+        },
+        audit_logs=audits[:50],
+        audit_logs_count=len(audits),
+        notification_preferences=notification_preferences,
+        consents=consents,
+    )
+
+
+@router.patch(
+    "/me",
+    response_model=ProfileUpdateResponse,
+    summary="Right to Rectification (Art. 16)",
+)
+async def update_my_profile(
+    body: ProfileUpdateRequest,
+    user: CurrentUser,
+    request: Request,
+) -> ProfileUpdateResponse:
+    """Allow user to correct personal data."""
+    updates: dict[str, Any] = {}
+    if body.full_name is not None:
+        updates["full_name"] = body.full_name
+    if body.email is not None:
+        updates["email"] = body.email
+        updates["email_verified"] = False
+        updates["email_verified_at"] = None
+
+    if not updates:
+        return ProfileUpdateResponse(updated=False, fields=[])
+
+    sb = get_supabase()
+    sb.table("users").update(updates).eq("id", user.id).execute()
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.rectify",
+        resource="privacy",
+        ip=request.client.host if request.client else None,
+        metadata={"fields": list(updates.keys())},
+    )
+
+    return ProfileUpdateResponse(updated=True, fields=list(updates.keys()))
+
+
+@router.post(
+    "/export",
+    response_model=ExportResponse,
+    summary="Right to Data Portability (Art. 20)",
+)
+async def request_export(
+    body: ExportRequest,
+    user: CurrentUser,
+    request: Request,
+) -> ExportResponse:
+    """Request a full data export. Returns status (async processing)."""
+    bundle = _build_export_bundle(user.id)
+    summary = _build_export_summary(bundle)
+    requested_at = _now_iso()
+    expires_at = (datetime.now(UTC) + timedelta(hours=EXPORT_LINK_TTL_HOURS)).isoformat()
+    export_id = f"exp_{user.id[:8]}_{int(datetime.now(UTC).timestamp())}"
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.export_request",
+        resource="privacy",
+        ip=_client_ip(request),
+        metadata={"format": body.format, "summary": summary, "export_id": export_id},
+    )
+    return ExportResponse(
+        message="Data export request received. You will be notified when ready.",
+        status="queued",
+        export_id=export_id,
+        format=body.format,
+        requested_at=requested_at,
+        expires_at=expires_at,
+        summary=summary,
+    )
+
+
+@router.delete(
+    "/me",
+    response_model=DeletionResponse,
+    summary="Right to Erasure (Art. 17)",
+)
+async def request_deletion(
+    user: CurrentUser,
+    request: Request,
+) -> DeletionResponse:
+    """Request account deletion with 14-day grace period."""
+    sb = get_supabase()
+
+    existing = (
+        sb.table("deletion_requests")
+        .select("id, status, scheduled_for")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .maybe_single()
+        .execute()
+    )
+    if existing.data:
+        return DeletionResponse(
+            message="Deletion already scheduled",
+            scheduled_for=existing.data["scheduled_for"],
+        )
+
+    scheduled_for = datetime.now(UTC) + timedelta(days=GRACE_PERIOD_DAYS)
+
+    sb.table("deletion_requests").insert({
+        "user_id": user.id,
+        "status": "pending",
+        "requested_at": _now_iso(),
+        "scheduled_for": scheduled_for.isoformat(),
+    }).execute()
+
+    sb.table("users").update({
+        "is_active": False,
+        "deletion_scheduled_at": scheduled_for.isoformat(),
+    }).eq("id", user.id).execute()
+
+    sb.table("api_keys").update({
+        "is_active": False,
+    }).eq("user_id", user.id).execute()
+    sb.table("social_accounts").update({
+        "status": "deletion_pending",
+    }).eq("owner_id", user.id).execute()
+
+    subscription_row = (
+        sb.table("users")
+        .select("stripe_subscription_id")
+        .eq("id", user.id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if subscription_row and subscription_row.get("stripe_subscription_id"):
+        try:
+            await cancel_subscription(user.id)
+        except Exception:
+            sb.table("users").update({
+                "cancel_at_period_end": True,
+            }).eq("id", user.id).execute()
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.deletion_request",
+        resource="privacy",
+        ip=_client_ip(request),
+    )
+
+    return DeletionResponse(
+        message=f"Account deletion scheduled. {GRACE_PERIOD_DAYS}-day grace period.",
+        scheduled_for=scheduled_for.isoformat(),
+    )
+
+
+@router.post(
+    "/cancel-deletion",
+    response_model=DeletionCancelResponse,
+    summary="Cancel pending deletion",
+)
+async def cancel_deletion(
+    user: CurrentUser,
+    request: Request,
+) -> DeletionCancelResponse:
+    """Cancel a pending deletion request within the grace period."""
+    sb = get_supabase()
+
+    existing = (
+        sb.table("deletion_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .maybe_single()
+        .execute()
+    )
+    if not existing.data:
+        raise NotFoundError("deletion_request", user.id)
+
+    sb.table("deletion_requests").update({
+        "status": "cancelled",
+    }).eq("id", existing.data["id"]).execute()
+
+    sb.table("users").update({
+        "is_active": True,
+        "deletion_scheduled_at": None,
+    }).eq("id", user.id).execute()
+
+    sb.table("api_keys").update({
+        "is_active": True,
+    }).eq("user_id", user.id).execute()
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.deletion_cancel",
+        resource="privacy",
+        ip=_client_ip(request),
+    )
+
+    return DeletionCancelResponse(
+        message="Deletion cancelled. Account reactivated.",
+        cancelled=True,
+    )
+
+
+@router.post(
+    "/restrict",
+    response_model=RestrictionResponse,
+    summary="Right to Restriction (Art. 18)",
+)
+async def restrict_processing(
+    user: CurrentUser,
+    request: Request,
+) -> RestrictionResponse:
+    """Request restriction of data processing."""
+    sb = get_supabase()
+    sb.table("users").update({
+        "data_processing_restricted": True,
+    }).eq("id", user.id).execute()
+    _upsert_notification_preferences(
+        sb,
+        user.id,
+        {
+            "product_updates": False,
+            "monthly_summary": False,
+            "webhook_alerts": False,
+        },
+    )
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.restrict",
+        resource="privacy",
+        ip=_client_ip(request),
+    )
+
+    return RestrictionResponse(
+        message="Data processing restricted.",
+        restricted=True,
+    )
+
+
+@router.post(
+    "/unrestrict",
+    response_model=RestrictionResponse,
+    summary="Lift processing restriction",
+)
+async def unrestrict_processing(
+    user: CurrentUser,
+    request: Request,
+) -> RestrictionResponse:
+    """Lift restriction of data processing."""
+    sb = get_supabase()
+    sb.table("users").update({
+        "data_processing_restricted": False,
+    }).eq("id", user.id).execute()
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.unrestrict",
+        resource="privacy",
+        ip=_client_ip(request),
+    )
+
+    return RestrictionResponse(
+        message="Data processing restriction lifted.",
+        restricted=False,
+    )
+
+
+class ObjectionRequest(BaseModel):
+    purposes: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="Purposes to object to (e.g. analytics, marketing).",
+    )
+
+
+@router.post(
+    "/object",
+    response_model=ObjectionResponse,
+    summary="Right to Object (Art. 21)",
+)
+async def object_processing(
+    body: ObjectionRequest,
+    user: CurrentUser,
+    request: Request,
+) -> ObjectionResponse:
+    """Object to specific data processing purposes."""
+    sb = get_supabase()
+    invalid = sorted({purpose for purpose in body.purposes if purpose not in OBJECTABLE_PURPOSES})
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid objection purposes: {', '.join(invalid)}",
+        )
+
+    for purpose in body.purposes:
+        existing = (
+            sb.table("consents")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("purpose", purpose)
+            .maybe_single()
+            .execute()
+        )
+        now_iso = _now_iso()
+        if existing.data:
+            sb.table("consents").update({
+                "granted": False,
+                "revoked_at": now_iso,
+            }).eq("id", existing.data["id"]).execute()
+        else:
+            sb.table("consents").insert({
+                "user_id": user.id,
+                "purpose": purpose,
+                "granted": False,
+                "revoked_at": now_iso,
+                "ip": _client_ip(request),
+            }).execute()
+
+    preference_updates: dict[str, Any] = {}
+    if "marketing" in body.purposes:
+        preference_updates["product_updates"] = False
+    if {"analytics", "cookies_analytics"} & set(body.purposes):
+        preference_updates["monthly_summary"] = False
+    if preference_updates:
+        _upsert_notification_preferences(sb, user.id, preference_updates)
+
+    await record_audit(
+        user_id=user.id,
+        action="privacy.object",
+        resource="privacy",
+        ip=_client_ip(request),
+        metadata={"purposes": body.purposes},
+    )
+
+    return ObjectionResponse(
+        message="Objection recorded.",
+        objected_purposes=body.purposes,
+    )

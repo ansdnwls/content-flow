@@ -1,0 +1,64 @@
+---
+title: JavaScript SDK
+description: Install, initialize, and use the ContentFlow JavaScript SDK.
+---
+
+# JavaScript SDK
+
+## Install
+
+```bash
+npm install contentflow-sdk
+```
+
+## Initialize
+
+```typescript
+import { ContentFlow } from "contentflow-sdk";
+
+const cf = new ContentFlow({
+  apiKey: "cf_live_replace_me",
+  baseUrl: "https://contentflow-api.railway.app",
+  timeout: 60_000,
+});
+```
+
+## Common methods
+
+```typescript
+const post = await cf.posts.create({
+  text: "Ship the launch note now.",
+  platforms: ["linkedin", "x_twitter"],
+  mediaType: "text",
+});
+
+const accounts = await cf.accounts.list();
+const analytics = await cf.analytics.get();
+
+const video = await cf.videos.generate({
+  topic: "Launch recap",
+  mode: "product",
+  language: "en",
+  format: "shorts",
+});
+```
+
+## Error handling
+
+```typescript
+import { ContentFlow, ContentFlowError } from "contentflow-sdk";
+
+try {
+  await cf.posts.create({ text: "Hello", platforms: ["x_twitter"] });
+} catch (error) {
+  if (error instanceof ContentFlowError) {
+    console.error(error.status, error.message, error.body);
+  }
+}
+```
+
+## Use cases
+
+- Next.js server actions
+- Node.js workers
+- Browser dashboards with a trusted backend proxy

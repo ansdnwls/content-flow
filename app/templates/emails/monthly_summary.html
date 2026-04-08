@@ -1,0 +1,46 @@
+<html>
+  <body style="margin:0;background:#120A14;font-family:Arial,sans-serif;color:#291815;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#120A14;padding:32px 16px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;">
+          <tr><td style="padding:28px 32px;border-radius:28px 28px 0 0;background:linear-gradient(135deg,#FF6B35 0%,#FFD23F 58%,#06FFA5 100%);color:#20110B;">
+            <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Monthly summary</div>
+            <h1 style="margin:16px 0 8px;font-size:38px;line-height:1;letter-spacing:-0.05em;">Your last 30 days in one glance.</h1>
+            <p style="margin:0;font-size:18px;line-height:1.45;">Publishing, video, and platform signal without opening the dashboard.</p>
+          </td></tr>
+          <tr><td style="background:#FFF8F2;border-radius:0 0 28px 28px;padding:32px;">
+            <p style="margin:0 0 18px;font-size:16px;line-height:1.7;color:#6F5048;">Hi $name, here&apos;s what moved last month:</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0 24px;">
+              <tr>
+                <td style="width:33.33%;padding:0 6px 0 0;">
+                  <div style="padding:18px;border-radius:22px;background:#FFF1E6;border:1px solid #F1D5C6;">
+                    <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#B36B45;font-weight:700;">Posts</div>
+                    <div style="margin-top:12px;font-size:30px;font-weight:700;">$posts_count</div>
+                  </div>
+                </td>
+                <td style="width:33.33%;padding:0 3px;">
+                  <div style="padding:18px;border-radius:22px;background:#FFF7D8;border:1px solid #EFD88B;">
+                    <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#8B6B13;font-weight:700;">Videos</div>
+                    <div style="margin-top:12px;font-size:30px;font-weight:700;">$videos_count</div>
+                  </div>
+                </td>
+                <td style="width:33.33%;padding:0 0 0 6px;">
+                  <div style="padding:18px;border-radius:22px;background:#EFFFF8;border:1px solid #B9F1D7;">
+                    <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#0E8F61;font-weight:700;">Top mix</div>
+                    <div style="margin-top:12px;font-size:16px;font-weight:700;line-height:1.4;">$top_platforms</div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+            <table role="presentation" cellspacing="0" cellpadding="0">
+              <tr><td style="border-radius:18px;background:linear-gradient(135deg,#FF6B35 0%,#FFD23F 60%,#06FFA5 100%);">
+                <a href="$dashboard_url" style="display:inline-block;padding:14px 24px;color:#20110B;text-decoration:none;font-weight:700;">View full analytics</a>
+              </td></tr>
+            </table>
+          </td></tr>
+          <tr><td style="padding:18px 10px 0;text-align:center;font-size:12px;line-height:1.7;color:#B9A79D;"><a href="$unsubscribe_url" style="color:#FFD23F;text-decoration:none;">Unsubscribe</a> · $support_email</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+---
+title: Mastodon
+description: Publish federated social posts to Mastodon through ContentFlow.
+---
+
+# Mastodon
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Mastodon](https://cdn.simpleicons.org/mastodon/6364FF) |
+| Supported content types | Text, image, video posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Instance token or app credential flow |
+| Main limitation | Instance-specific policies and rate limits still apply |
+
+## Notes
+
+- Mastodon works well for community-facing technical updates.
+- Plan around the specific instance you are targeting.
+- Treat it as a federated community destination, not just another X mirror.
+
+## Example
+
+```json
+{
+  "text": "Patch notes are published and the docs are live.",
+  "platforms": ["mastodon"],
+  "media_type": "text"
+}
+```

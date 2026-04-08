@@ -1,0 +1,30 @@
+---
+title: Medium
+description: Publish long-form stories to Medium through ContentFlow.
+---
+
+# Medium
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Medium](https://cdn.simpleicons.org/medium/000000) |
+| Supported content types | Articles and long-form stories |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Token-based Medium integration |
+| Main limitation | Medium should receive article-ready content rather than short social summaries |
+
+## Notes
+
+- Medium is strong for narrative product posts, essays, and founder notes.
+- Pair with WordPress when you want dual blog distribution.
+- Draft high-context content upstream before sending it into the API.
+
+## Example
+
+```json
+{
+  "text": "The engineering story behind the April release.",
+  "platforms": ["medium"],
+  "media_type": "text"
+}
+```

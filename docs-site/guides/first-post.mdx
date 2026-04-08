@@ -1,0 +1,70 @@
+---
+title: First post
+description: Publish or schedule a multi-platform post with ContentFlow.
+---
+
+# First post
+
+The `POST /api/v1/posts` endpoint creates a publish job. Immediate jobs are enqueued right away. Scheduled jobs are stored and dispatched later.
+
+## Minimal request
+
+```bash
+curl -X POST https://contentflow-api.railway.app/api/v1/posts \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: cf_live_replace_me" \
+  -d '{
+    "text": "New product clip is live.",
+    "platforms": ["x_twitter", "threads"],
+    "media_type": "text"
+  }'
+```
+
+## Schedule instead of publish now
+
+```json
+{
+  "text": "Morning release slot",
+  "platforms": ["linkedin", "x_twitter"],
+  "media_type": "text",
+  "scheduled_for": "2026-04-09T09:00:00+09:00"
+}
+```
+
+## Dry-run before enqueue
+
+Dry-run validates delivery wiring without creating or publishing anything.
+
+```bash
+curl -X POST "https://contentflow-api.railway.app/api/v1/posts?dry_run=true" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: cf_live_replace_me" \
+  -d '{
+    "text": "Validation only",
+    "platforms": ["youtube", "tiktok"],
+    "media_urls": ["https://cdn.example.com/video.mp4"],
+    "media_type": "video"
+  }'
+```
+
+Look for:
+
+- `will_enqueue`
+- `missing_accounts`
+- `expected_deliveries`
+
+## Poll job status
+
+```bash
+curl https://contentflow-api.railway.app/api/v1/posts/{post_id} \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+The response includes aggregate status plus per-platform status.
+
+## Cancel a queued or scheduled post
+
+```bash
+curl -X DELETE https://contentflow-api.railway.app/api/v1/posts/{post_id} \
+  -H "X-API-Key: cf_live_replace_me"
+```

@@ -1,0 +1,83 @@
+---
+title: Authentication
+description: ContentFlow authenticates API requests with an X-API-Key header.
+---
+
+# Authentication
+
+ContentFlow uses API keys for all authenticated API calls.
+
+## Send the key in `X-API-Key`
+
+```bash
+curl https://contentflow-api.railway.app/api/v1/posts \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+## Key format
+
+- Production keys start with `cf_live_`
+- Sandbox or test keys start with `cf_test_`
+- Created keys are returned once as `raw_key`
+
+## Creating keys
+
+Issue the first key in the dashboard. After you already have a valid key, you can create additional keys through the API:
+
+```bash
+curl -X POST https://contentflow-api.railway.app/api/v1/keys \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: cf_live_replace_me" \
+  -d '{
+    "name": "ci-docs",
+    "expires_in": "90d"
+  }'
+```
+
+Successful responses include:
+
+- `id`
+- `key_preview`
+- `expires_at`
+- `raw_key`
+
+Persist `raw_key` immediately. ContentFlow does not return the full key again later.
+
+## Rotation
+
+Rotate keys through `POST /api/v1/keys/{key_id}/rotate`.
+
+Rotation creates a fresh key and places the previous key on a 24-hour grace window. Use that overlap to update workers, CI jobs, or edge functions without downtime.
+
+## Recommended production setup
+
+- Store keys in your secret manager, not in source control.
+- Use one key per workload or environment.
+- Prefer 90-day or 180-day expiration for automation.
+- Review per-key activity with `GET /api/v1/keys/{key_id}/audit`.
+
+## OAuth versus API keys
+
+API keys authorize access to ContentFlow itself.
+
+OAuth tokens authorize ContentFlow to act on a destination platform account.
+
+In practice:
+
+1. Your app authenticates to ContentFlow with `X-API-Key`.
+2. Your user connects YouTube, TikTok, X, or another supported platform.
+3. ContentFlow stores the platform tokens and uses them during publish jobs.
+
+## Errors
+
+| Status | Meaning |
+| --- | --- |
+| `401` | Missing or invalid API key |
+| `403` | Key exists but access is blocked for the current resource or workspace |
+| `429` | Plan or rate limit exceeded |
+
+Rate-limit headers are returned on authenticated requests:
+
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`

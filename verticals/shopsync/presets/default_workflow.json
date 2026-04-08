@@ -1,0 +1,19 @@
+{
+  "id": "default_workflow",
+  "name": "Default Workflow",
+  "description": "Basic content distribution workflow",
+  "trigger": {
+    "type": "manual",
+    "schedule": null
+  },
+  "pipeline": [
+    {
+      "step": "create_post",
+      "content_type": "text_and_media"
+    },
+    {
+      "step": "distribute",
+      "platforms": []
+    }
+  ]
+}

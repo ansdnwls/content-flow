@@ -1,0 +1,29 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="900" rx="36" fill="#120C0A"/>
+  <rect x="52" y="72" width="430" height="756" rx="28" fill="#1E1512"/>
+  <text x="96" y="142" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="34" font-weight="700">Dashboard</text>
+  <rect x="96" y="188" width="342" height="160" rx="26" fill="#2B1F19"/>
+  <text x="128" y="240" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Connect X account</text>
+  <text x="128" y="286" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">POST /api/v1/accounts/connect/x_twitter</text>
+  <rect x="128" y="312" width="188" height="44" rx="22" fill="#FF6B35"/>
+  <text x="182" y="340" fill="#1B1310" font-family="Arial, sans-serif" font-size="20" font-weight="700">Authorize</text>
+  <rect x="534" y="200" width="372" height="500" rx="30" fill="#221813"/>
+  <text x="580" y="272" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="30" font-weight="700">Provider consent</text>
+  <rect x="580" y="320" width="280" height="64" rx="18" fill="#2B1F19"/>
+  <text x="622" y="360" fill="#F8E9DE" font-family="Arial, sans-serif" font-size="24">Allow ContentFlow</text>
+  <rect x="580" y="420" width="280" height="52" rx="18" fill="#06FFA5"/>
+  <text x="656" y="454" fill="#1B1310" font-family="Arial, sans-serif" font-size="22" font-weight="700">Approve</text>
+  <rect x="958" y="72" width="430" height="756" rx="28" fill="#1E1512"/>
+  <text x="1002" y="142" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="34" font-weight="700">ContentFlow callback</text>
+  <rect x="1002" y="198" width="342" height="178" rx="26" fill="#2B1F19"/>
+  <text x="1036" y="246" fill="#06FFA5" font-family="Arial, sans-serif" font-size="26" font-weight="700">Account connected</text>
+  <text x="1036" y="292" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">platform: x_twitter</text>
+  <text x="1036" y="328" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">handle: @contentflowdev</text>
+  <rect x="1002" y="418" width="342" height="288" rx="26" fill="#2B1F19"/>
+  <text x="1036" y="470" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Next request</text>
+  <text x="1036" y="522" fill="#FFD23F" font-family="Arial, sans-serif" font-size="22">POST /api/v1/posts</text>
+  <text x="1036" y="564" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">platforms: ["x_twitter"]</text>
+  <text x="1036" y="606" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">status: pending → published</text>
+  <path d="M462 430H526" stroke="#FF6B35" stroke-width="10" stroke-linecap="round"/>
+  <path d="M912 430H976" stroke="#FF6B35" stroke-width="10" stroke-linecap="round"/>
+</svg>

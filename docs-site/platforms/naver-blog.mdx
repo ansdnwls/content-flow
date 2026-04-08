@@ -1,0 +1,30 @@
+---
+title: Naver Blog
+description: Publish long-form Korean blog content to Naver Blog through ContentFlow.
+---
+
+# Naver Blog
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Naver Blog](https://cdn.simpleicons.org/naver/03C75A) |
+| Supported content types | Articles, image-backed blog posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Managed through your own regional integration credentials |
+| Main limitation | Format and tone should be localized for Korean search and blog conventions |
+
+## Notes
+
+- Naver Blog is one of the core regional channels in ContentFlow.
+- Use article-style payloads rather than social fragments.
+- Pair with Tistory and Kakao when your workflow targets Korea specifically.
+
+## Example
+
+```json
+{
+  "text": "4월 릴리스 정리와 운영 변경 사항.",
+  "platforms": ["naver_blog"],
+  "media_type": "text"
+}
+```

@@ -1,0 +1,31 @@
+---
+title: Google Business Profile
+description: Publish local business updates to Google Business Profile through ContentFlow.
+---
+
+# Google Business Profile
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Google Business Profile](https://cdn.simpleicons.org/googlebusinessprofile/4285F4) |
+| Supported content types | Local updates, short text, image-backed updates |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Google Business scopes managed outside the public account connect flow |
+| Main limitation | Best for local presence updates, not general social republishing |
+
+## Notes
+
+- Use this destination for store updates, events, or operational notices.
+- Keep copy short and local-intent focused.
+- Even though the Google OAuth provider is extendable, the public connect flow currently targets YouTube.
+
+## Example
+
+```json
+{
+  "text": "New service hours are now live.",
+  "platforms": ["google_business"],
+  "media_urls": ["https://cdn.example.com/storefront.jpg"],
+  "media_type": "image"
+}
+```

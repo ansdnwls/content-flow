@@ -1,0 +1,30 @@
+---
+title: Bluesky
+description: Publish short social updates to Bluesky through ContentFlow.
+---
+
+# Bluesky
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Bluesky](https://cdn.simpleicons.org/bluesky/0285FF) |
+| Supported content types | Text and image-backed social posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | App-password or token-based credential flow |
+| Main limitation | Treat Bluesky as a separate social voice rather than a direct X mirror |
+
+## Notes
+
+- Bluesky works well for concise launch notes and community updates.
+- Bring your own account credentials until public OAuth account connect is added.
+- Multi-platform bursts often pair Bluesky with X and Threads.
+
+## Example
+
+```json
+{
+  "text": "Patch notes are live. Full write-up is in the docs.",
+  "platforms": ["bluesky"],
+  "media_type": "text"
+}
+```

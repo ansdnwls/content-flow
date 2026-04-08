@@ -1,0 +1,39 @@
+---
+title: Instagram
+description: Publish Instagram images, reels, and carousel-style media through ContentFlow.
+---
+
+# Instagram
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Instagram](https://cdn.simpleicons.org/instagram/E4405F) |
+| Supported content types | Images, carousels, reel-style videos |
+| OAuth support in ContentFlow | Yes |
+| OAuth scopes | `instagram_basic`, `instagram_content_publish`, `pages_show_list` |
+| Main limitation | Multi-image flows should be prepared up front in the requested media set |
+
+## Notes
+
+- Instagram is best used with images or short-form video assets.
+- Use `platform_options.instagram.caption` when you want a platform-specific caption.
+- Delivery requires a connected Meta-managed Instagram account.
+
+## Example
+
+```json
+{
+  "text": "Behind the scenes from launch day.",
+  "platforms": ["instagram"],
+  "media_urls": [
+    "https://cdn.example.com/frame-1.jpg",
+    "https://cdn.example.com/frame-2.jpg"
+  ],
+  "media_type": "image",
+  "platform_options": {
+    "instagram": {
+      "caption": "Behind the scenes from launch day."
+    }
+  }
+}
+```

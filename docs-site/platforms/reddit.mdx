@@ -1,0 +1,30 @@
+---
+title: Reddit
+description: Publish Reddit-compatible text and media workflows through ContentFlow.
+---
+
+# Reddit
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Reddit](https://cdn.simpleicons.org/reddit/FF4500) |
+| Supported content types | Text posts, link-style posts, image-backed posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Bring your own Reddit app scopes and stored credentials |
+| Main limitation | Community-specific rules still apply; ContentFlow does not bypass subreddit policy |
+
+## Notes
+
+- Keep Reddit destinations highly context-aware.
+- Use dry-run to check account wiring before bulk fan-out.
+- Prefer community-native copy rather than simply cross-posting headline text.
+
+## Example
+
+```json
+{
+  "text": "We documented the April release architecture changes.",
+  "platforms": ["reddit"],
+  "media_type": "text"
+}
+```

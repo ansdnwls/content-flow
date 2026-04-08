@@ -1,0 +1,30 @@
+---
+title: X
+description: Publish text, image, and video posts to X through ContentFlow.
+---
+
+# X
+
+| Field | Value |
+| --- | --- |
+| Logo | ![X](https://cdn.simpleicons.org/x/000000) |
+| Supported content types | Text, image, video |
+| OAuth support in ContentFlow | Yes |
+| OAuth scopes | `tweet.read`, `tweet.write`, `users.read`, `offline.access` |
+| Main limitation | Keep packaging concise; long copy usually belongs on blog destinations instead |
+
+## Notes
+
+- X is a strong first integration for the Quickstart because text-only posts work immediately.
+- The OAuth flow uses Authorization Code with PKCE.
+- ContentFlow can include X in multi-platform fan-out batches.
+
+## Example
+
+```json
+{
+  "text": "Shipping the launch note now.",
+  "platforms": ["x_twitter"],
+  "media_type": "text"
+}
+```

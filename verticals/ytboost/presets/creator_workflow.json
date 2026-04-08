@@ -1,0 +1,25 @@
+{
+  "id": "creator_workflow",
+  "name": "Full Creator Workflow",
+  "description": "YouTube upload triggers auto shorts extraction and 6-platform distribution",
+  "trigger": {
+    "type": "youtube_upload",
+    "channel_ids": []
+  },
+  "pipeline": [
+    {
+      "step": "extract_shorts",
+      "count": 3,
+      "duration": 60
+    },
+    {
+      "step": "distribute",
+      "platforms": ["youtube_shorts", "tiktok", "instagram_reels", "x", "threads", "facebook"]
+    },
+    {
+      "step": "comment_autopilot",
+      "tone": "friendly",
+      "auto_approve": false
+    }
+  ]
+}

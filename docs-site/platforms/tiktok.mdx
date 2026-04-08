@@ -1,0 +1,36 @@
+---
+title: TikTok
+description: Publish short-form video content to TikTok through ContentFlow.
+---
+
+# TikTok
+
+| Field | Value |
+| --- | --- |
+| Logo | ![TikTok](https://cdn.simpleicons.org/tiktok/000000) |
+| Supported content types | Video posts |
+| OAuth support in ContentFlow | Yes |
+| OAuth scopes | `user.info.basic`, `video.publish`, `video.upload` |
+| Main limitation | Text-only jobs are not a fit; attach a valid video asset |
+
+## Notes
+
+- Use short-form vertical media when possible.
+- TikTok jobs should include one video URL and concise captioning.
+- Auto-publish from AI video generation works well for TikTok-first workflows.
+
+## Example
+
+```json
+{
+  "text": "April release in 20 seconds.",
+  "platforms": ["tiktok"],
+  "media_urls": ["https://cdn.example.com/release-short.mp4"],
+  "media_type": "video",
+  "platform_options": {
+    "tiktok": {
+      "title": "April release in 20 seconds #product"
+    }
+  }
+}
+```

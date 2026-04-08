@@ -1,0 +1,61 @@
+---
+title: Python SDK
+description: Install, initialize, and use the ContentFlow Python SDK.
+---
+
+# Python SDK
+
+## Install
+
+```bash
+pip install contentflow
+```
+
+## Initialize
+
+```python
+from contentflow import ContentFlow
+
+cf = ContentFlow(
+    api_key="cf_live_replace_me",
+    base_url="https://contentflow-api.railway.app",
+    timeout=30.0,
+)
+```
+
+## Common methods
+
+```python
+post = cf.posts.create(
+    text="Launch clip is live.",
+    platforms=["youtube", "tiktok"],
+    media_urls=["https://cdn.example.com/video.mp4"],
+    media_type="video",
+)
+
+status = cf.posts.get(post["id"])
+accounts = cf.accounts.list()
+
+video = cf.videos.generate(
+    topic="April release notes",
+    mode="product",
+    language="en",
+)
+```
+
+## Error handling
+
+Wrap calls at the boundary where your app can retry or alert:
+
+```python
+try:
+    cf.posts.create(text="Hello", platforms=["x_twitter"])
+except Exception as exc:
+    print(f"ContentFlow request failed: {exc}")
+```
+
+## Use cases
+
+- Backend jobs
+- Django or FastAPI services
+- CI scripts and migration utilities

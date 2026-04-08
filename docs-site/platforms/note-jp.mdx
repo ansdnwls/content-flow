@@ -1,0 +1,30 @@
+---
+title: note.com
+description: Publish Japanese long-form content to note.com through ContentFlow.
+---
+
+# note.com
+
+| Field | Value |
+| --- | --- |
+| Logo | ![note.com](https://cdn.simpleicons.org/note/41C9B4) |
+| Supported content types | Articles and creator-style long-form posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Managed through your own note.com integration credentials |
+| Main limitation | Best results come from Japanese-localized content rather than direct translation only |
+
+## Notes
+
+- note.com is the Japan-focused long-form destination in ContentFlow.
+- Use it for essays, launch notes, and creator-style editorial pieces.
+- Pair it with LINE for Japan-specific audience flows.
+
+## Example
+
+```json
+{
+  "text": "4月リリースの要点をまとめました。",
+  "platforms": ["note_jp"],
+  "media_type": "text"
+}
+```

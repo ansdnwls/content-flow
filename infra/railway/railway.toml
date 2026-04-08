@@ -1,0 +1,52 @@
+# =============================================================================
+# ContentFlow — Railway Deployment Configuration
+# =============================================================================
+# Services: api, worker, beat
+# External: Redis (Railway plugin), Supabase (managed)
+# =============================================================================
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+numReplicas = 1
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# ---------------------------------------------------------------------------
+# API Service (default)
+# ---------------------------------------------------------------------------
+# The primary service runs the FastAPI app via uvicorn.
+# Railway routes HTTP traffic here by default.
+
+[deploy.api]
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --timeout-keep-alive 65"
+healthcheckPath = "/health"
+
+[deploy.api.envs]
+APP_ENV = "production"
+LOG_LEVEL = "INFO"
+STRUCTURED_LOGGING_ENABLED = "true"
+
+# ---------------------------------------------------------------------------
+# Celery Worker
+# ---------------------------------------------------------------------------
+# Processes async tasks: post publishing, video generation, comment replies,
+# bomb transforms, webhook deliveries, token refresh, trending refresh.
+
+[deploy.worker]
+startCommand = "celery -A app.workers.celery_app:celery_app worker --loglevel=info --concurrency=4 -Q contentflow.default"
+numReplicas = 1
+
+# ---------------------------------------------------------------------------
+# Celery Beat (scheduler)
+# ---------------------------------------------------------------------------
+# Runs periodic tasks defined in celery_app.conf.beat_schedule.
+# MUST be a single replica to prevent duplicate scheduling.
+
+[deploy.beat]
+startCommand = "celery -A app.workers.celery_app:celery_app beat --loglevel=info"
+numReplicas = 1

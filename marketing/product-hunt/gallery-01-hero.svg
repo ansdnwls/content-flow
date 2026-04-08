@@ -1,0 +1,21 @@
+<svg width="1200" height="600" viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="600" rx="36" fill="#120A14"/>
+  <circle cx="210" cy="120" r="160" fill="#FF6B35" fill-opacity="0.16"/>
+  <circle cx="940" cy="104" r="144" fill="#FFD23F" fill-opacity="0.14"/>
+  <circle cx="900" cy="488" r="166" fill="#06FFA5" fill-opacity="0.12"/>
+  <text x="76" y="88" fill="#FFD23F" font-family="Arial" font-size="22" font-weight="700" letter-spacing="4">CONTENTFLOW</text>
+  <text x="76" y="244" fill="#FFF6EF" font-family="Arial" font-size="92" font-weight="800">1 API. 21 platforms.</text>
+  <text x="76" y="336" fill="#FFF6EF" font-family="Arial" font-size="92" font-weight="800">0 clicks.</text>
+  <text x="76" y="402" fill="#D3C1B6" font-family="Arial" font-size="30">The API for creators who ship</text>
+  <g transform="translate(760 158)">
+    <circle cx="120" cy="120" r="42" fill="#FFD23F"/>
+    <circle cx="22" cy="54" r="22" fill="#FF6B35"/>
+    <circle cx="234" cy="48" r="22" fill="#06FFA5"/>
+    <circle cx="272" cy="172" r="22" fill="#FF8F6A"/>
+    <circle cx="50" cy="228" r="22" fill="#FFF6EF"/>
+    <path d="M120 120L32 58" stroke="#FF6B35" stroke-width="8" stroke-linecap="round"/>
+    <path d="M120 120L224 56" stroke="#06FFA5" stroke-width="8" stroke-linecap="round"/>
+    <path d="M120 120L258 170" stroke="#FFD23F" stroke-width="8" stroke-linecap="round"/>
+    <path d="M120 120L58 220" stroke="#FFF6EF" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,0 +1,32 @@
+---
+title: API Reference Overview
+description: Generated API reference from the FastAPI OpenAPI schema.
+---
+
+# API reference overview
+
+The endpoint reference in this section is generated from the repository OpenAPI schema.
+
+## Source of truth
+
+- Export script: `scripts/export_openapi.py`
+- Generated file in the API project: `docs/openapi.json`
+- Synced file for Mintlify: `docs-site/openapi.json`
+
+`npm run build` refreshes the schema before Mintlify validation, so the reference stays aligned with the current FastAPI app.
+
+## Coverage
+
+The generated reference includes:
+
+- Posts
+- Videos
+- Accounts
+- Webhooks
+- Analytics
+- Trending
+- Billing
+- Workspaces
+- Privacy, consent, and legal endpoints
+
+Use the generated endpoint pages under this section when you need exact request and response bodies.

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "ContentFlow Docs",
+  "theme": "mint",
+  "colors": {
+    "primary": "#ff6b35",
+    "light": "#ff8f6a",
+    "dark": "#cf4a1b"
+  },
+  "logo": {
+    "light": "/images/contentflow-wordmark-dark.svg",
+    "dark": "/images/contentflow-wordmark-light.svg"
+  },
+  "favicon": "/images/contentflow-favicon.svg",
+  "openapi": "./openapi.json",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart",
+          "authentication"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/first-post",
+          "guides/webhooks",
+          "guides/ai-video",
+          "guides/multi-platform"
+        ]
+      },
+      {
+        "group": "SDKs",
+        "pages": [
+          "sdks/python",
+          "sdks/javascript",
+          "sdks/go"
+        ]
+      },
+      {
+        "group": "Platforms",
+        "pages": [
+          "platforms/youtube",
+          "platforms/tiktok",
+          "platforms/instagram",
+          "platforms/x-twitter",
+          "platforms/linkedin",
+          "platforms/facebook",
+          "platforms/threads",
+          "platforms/pinterest",
+          "platforms/reddit",
+          "platforms/bluesky",
+          "platforms/snapchat",
+          "platforms/telegram",
+          "platforms/wordpress",
+          "platforms/google-business",
+          "platforms/naver-blog",
+          "platforms/tistory",
+          "platforms/kakao",
+          "platforms/note-jp",
+          "platforms/line",
+          "platforms/mastodon",
+          "platforms/medium"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/overview"
+        ]
+      },
+      {
+        "group": "Updates",
+        "pages": [
+          "changelog"
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Dashboard",
+        "href": "https://dashboard.contentflow.dev"
+      },
+      {
+        "label": "Landing",
+        "href": "https://contentflow.dev"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Start free",
+      "href": "https://contentflow.dev"
+    }
+  },
+  "footerSocials": {
+    "github": "https://github.com/ansdnwls/content-flow",
+    "x": "https://x.com/contentflowdev"
+  }
+}

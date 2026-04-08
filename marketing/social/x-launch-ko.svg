@@ -1,0 +1,8 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="675" rx="36" fill="#120A14"/>
+  <circle cx="982" cy="120" r="154" fill="#FFD23F" fill-opacity="0.14"/>
+  <text x="78" y="118" fill="#FFD23F" font-family="Arial" font-size="22" font-weight="700" letter-spacing="4">KOREA LAUNCH</text>
+  <text x="78" y="254" fill="#FFF6EF" font-family="Arial" font-size="82" font-weight="800">한 번 만들고,</text>
+  <text x="78" y="336" fill="#FFF6EF" font-family="Arial" font-size="82" font-weight="800">여러 채널에 보냅니다.</text>
+  <text x="78" y="410" fill="#D3C1B6" font-family="Arial" font-size="30">네이버, 티스토리, 카카오까지 하나의 API로.</text>
+</svg>

@@ -1,0 +1,31 @@
+---
+title: Snapchat
+description: Publish Snapchat-compatible image and video payloads through ContentFlow.
+---
+
+# Snapchat
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Snapchat](https://cdn.simpleicons.org/snapchat/FFFC00) |
+| Supported content types | Vertical image and video stories |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Bring your own Snapchat app scopes and stored credentials |
+| Main limitation | Creative assets should be vertical and story-ready before submission |
+
+## Notes
+
+- Use Snapchat only with native story assets.
+- Avoid long-form text payloads.
+- This channel is usually best as part of a media-first workflow.
+
+## Example
+
+```json
+{
+  "text": "Launch recap",
+  "platforms": ["snapchat"],
+  "media_urls": ["https://cdn.example.com/story.mp4"],
+  "media_type": "video"
+}
+```

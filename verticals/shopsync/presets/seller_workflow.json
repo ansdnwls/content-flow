@@ -1,0 +1,25 @@
+{
+  "id": "seller_workflow",
+  "name": "Seller Auto-Post Workflow",
+  "description": "New product listing triggers auto content creation and multi-platform posting",
+  "trigger": {
+    "type": "product_listing",
+    "sources": ["smartstore", "coupang"]
+  },
+  "pipeline": [
+    {
+      "step": "product_to_copy",
+      "style": "casual_korean",
+      "include_price": true
+    },
+    {
+      "step": "distribute",
+      "platforms": ["instagram", "naver_blog", "kakao", "facebook"]
+    },
+    {
+      "step": "price_change_notifier",
+      "threshold_percent": 10,
+      "auto_update": true
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="900" rx="36" fill="#120C0A"/>
+  <rect x="36" y="36" width="1368" height="828" rx="28" fill="#1B1310"/>
+  <rect x="68" y="68" width="260" height="764" rx="24" fill="#251A15"/>
+  <rect x="100" y="116" width="120" height="18" rx="9" fill="#FF6B35"/>
+  <rect x="100" y="174" width="156" height="14" rx="7" fill="#665048"/>
+  <rect x="100" y="210" width="128" height="14" rx="7" fill="#665048"/>
+  <rect x="100" y="246" width="178" height="14" rx="7" fill="#665048"/>
+  <rect x="100" y="282" width="146" height="14" rx="7" fill="#665048"/>
+  <rect x="360" y="68" width="1012" height="92" rx="24" fill="#221813"/>
+  <rect x="398" y="102" width="280" height="22" rx="11" fill="#F8E9DE"/>
+  <rect x="1100" y="94" width="228" height="40" rx="20" fill="url(#paint0_linear_1_2)"/>
+  <text x="1148" y="120" fill="#1B1310" font-family="Arial, sans-serif" font-size="20" font-weight="700">Create API key</text>
+  <rect x="360" y="188" width="488" height="288" rx="28" fill="#221813"/>
+  <text x="398" y="238" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="28" font-weight="700">1. Sign up</text>
+  <text x="398" y="282" fill="#BCA79C" font-family="Arial, sans-serif" font-size="22">Create the account, verify email, and open your workspace.</text>
+  <rect x="398" y="322" width="412" height="96" rx="22" fill="#2B1F19"/>
+  <text x="430" y="378" fill="#FFD23F" font-family="Arial, sans-serif" font-size="24" font-weight="700">owner@contentflow.dev</text>
+  <rect x="882" y="188" width="490" height="288" rx="28" fill="#221813"/>
+  <text x="920" y="238" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="28" font-weight="700">2. Issue a key</text>
+  <rect x="920" y="282" width="414" height="68" rx="18" fill="#2B1F19"/>
+  <text x="950" y="324" fill="#F8E9DE" font-family="Arial, sans-serif" font-size="24">cf_live_x7m3...8a2d</text>
+  <rect x="920" y="372" width="170" height="44" rx="22" fill="#06FFA5"/>
+  <text x="974" y="400" fill="#1B1310" font-family="Arial, sans-serif" font-size="20" font-weight="700">Copy</text>
+  <rect x="360" y="508" width="1012" height="324" rx="28" fill="#221813"/>
+  <text x="398" y="560" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="28" font-weight="700">3. Connect a channel</text>
+  <rect x="398" y="598" width="286" height="170" rx="24" fill="#2B1F19"/>
+  <text x="430" y="644" fill="#FF6B35" font-family="Arial, sans-serif" font-size="24" font-weight="700">YouTube</text>
+  <text x="430" y="690" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">OAuth ready</text>
+  <rect x="716" y="598" width="286" height="170" rx="24" fill="#2B1F19"/>
+  <text x="748" y="644" fill="#FFD23F" font-family="Arial, sans-serif" font-size="24" font-weight="700">TikTok</text>
+  <text x="748" y="690" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">OAuth ready</text>
+  <rect x="1034" y="598" width="286" height="170" rx="24" fill="#2B1F19"/>
+  <text x="1066" y="644" fill="#FFF6EF" font-family="Arial, sans-serif" font-size="24" font-weight="700">X</text>
+  <text x="1066" y="690" fill="#BCA79C" font-family="Arial, sans-serif" font-size="20">OAuth ready</text>
+  <defs>
+    <linearGradient id="paint0_linear_1_2" x1="1100" y1="94" x2="1328" y2="134" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF6B35"/>
+      <stop offset="1" stop-color="#FFD23F"/>
+    </linearGradient>
+  </defs>
+</svg>

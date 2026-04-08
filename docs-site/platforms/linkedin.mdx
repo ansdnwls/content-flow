@@ -1,0 +1,35 @@
+---
+title: LinkedIn
+description: Publish LinkedIn posts with text, image, or video payloads through ContentFlow.
+---
+
+# LinkedIn
+
+| Field | Value |
+| --- | --- |
+| Logo | ![LinkedIn](https://cdn.simpleicons.org/linkedin/0A66C2) |
+| Supported content types | Text posts, image posts, video posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Bring your own LinkedIn app scopes and stored credentials |
+| Main limitation | Account connection is not available through `POST /api/v1/accounts/connect/linkedin` in the current API |
+
+## Notes
+
+- LinkedIn publishing works at the adapter layer.
+- Teams usually provision LinkedIn credentials in their own control plane and inject them into the stored account set outside the public OAuth flow.
+- Use LinkedIn when you need more formal copy and business-facing packaging.
+
+## Example
+
+```json
+{
+  "text": "Quarterly launch summary for operators.",
+  "platforms": ["linkedin"],
+  "media_type": "text",
+  "platform_options": {
+    "linkedin": {
+      "title": "Quarterly launch summary"
+    }
+  }
+}
+```

@@ -1,0 +1,30 @@
+---
+title: LINE
+description: Publish LINE messages and channel updates through ContentFlow.
+---
+
+# LINE
+
+| Field | Value |
+| --- | --- |
+| Logo | ![LINE](https://cdn.simpleicons.org/line/00C300) |
+| Supported content types | Text, image, and channel message flows |
+| OAuth support in ContentFlow | Not required |
+| OAuth scopes | Bot token or channel credential flow |
+| Main limitation | Delivery depends on bot/channel permissions rather than a public user OAuth flow |
+
+## Notes
+
+- LINE is a high-value regional destination for Japan.
+- Keep message payloads compact and operational.
+- It pairs well with note.com in Japan-focused rollouts.
+
+## Example
+
+```json
+{
+  "text": "本日の更新内容を配信します。",
+  "platforms": ["line"],
+  "media_type": "text"
+}
+```

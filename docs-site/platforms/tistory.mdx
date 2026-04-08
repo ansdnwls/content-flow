@@ -1,0 +1,30 @@
+---
+title: Tistory
+description: Publish Korean long-form posts to Tistory through ContentFlow.
+---
+
+# Tistory
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Tistory](https://cdn.simpleicons.org/tistory/000000) |
+| Supported content types | Articles, image-backed posts |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Managed through your own Tistory integration credentials |
+| Main limitation | Best for editorial or knowledge-base style content, not short social updates |
+
+## Notes
+
+- Tistory works well for engineering notes, product logs, and evergreen content.
+- Use it when Korea-local blog distribution matters.
+- Pair it with WordPress or Naver Blog for mirrored publishing patterns.
+
+## Example
+
+```json
+{
+  "text": "운영팀용 릴리스 요약.",
+  "platforms": ["tistory"],
+  "media_type": "text"
+}
+```

@@ -1,0 +1,30 @@
+---
+title: Threads
+description: Publish Threads updates through ContentFlow.
+---
+
+# Threads
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Threads](https://cdn.simpleicons.org/threads/000000) |
+| Supported content types | Text and media-backed social posts |
+| OAuth support in ContentFlow | Yes |
+| OAuth scopes | `threads_basic`, `threads_content_publish`, `threads_manage_replies` |
+| Main limitation | Keep payloads short and conversational for best results |
+
+## Notes
+
+- Threads account connection is part of the Meta OAuth flow.
+- Threads works well in multi-platform sets paired with Instagram and X.
+- Reply management scopes are included for future response operations.
+
+## Example
+
+```json
+{
+  "text": "Shipping notes for the April release.",
+  "platforms": ["threads"],
+  "media_type": "text"
+}
+```

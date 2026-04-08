@@ -1,0 +1,31 @@
+---
+title: Pinterest
+description: Publish visual pins to Pinterest through ContentFlow.
+---
+
+# Pinterest
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Pinterest](https://cdn.simpleicons.org/pinterest/BD081C) |
+| Supported content types | Image pins, video pins |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Bring your own Pinterest app scopes and stored credentials |
+| Main limitation | Pinterest content should be strongly visual and benefits from dedicated creative dimensions |
+
+## Notes
+
+- Use Pinterest for evergreen visual distribution.
+- Pair image assets with concise descriptions.
+- Pre-connect accounts through your own credential management path if you need production automation now.
+
+## Example
+
+```json
+{
+  "text": "Save the launch checklist.",
+  "platforms": ["pinterest"],
+  "media_urls": ["https://cdn.example.com/checklist-cover.jpg"],
+  "media_type": "image"
+}
+```

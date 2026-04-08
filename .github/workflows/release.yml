@@ -1,0 +1,273 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  prepare:
+    name: Prepare release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+      notes: ${{ steps.notes.outputs.value }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate package versions
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          python <<'PY'
+          import json
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+
+          checks = {
+              "pyproject.toml": tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"],
+              "sdk/python/pyproject.toml": tomllib.loads(Path("sdk/python/pyproject.toml").read_text(encoding="utf-8"))["project"]["version"],
+              "sdk/javascript/package.json": json.loads(Path("sdk/javascript/package.json").read_text(encoding="utf-8"))["version"],
+          }
+
+          landing_package = Path("landing/package.json")
+          if landing_package.exists():
+              checks["landing/package.json"] = json.loads(landing_package.read_text(encoding="utf-8"))["version"]
+
+          main_source = Path("app/main.py").read_text(encoding="utf-8")
+          main_match = re.search(r'version="([^"]+)"', main_source)
+          if not main_match:
+              raise SystemExit("Could not find FastAPI version in app/main.py")
+          checks["app/main.py"] = main_match.group(1)
+
+          init_source = Path("sdk/python/contentflow/__init__.py").read_text(encoding="utf-8")
+          init_match = re.search(r'__version__ = "([^"]+)"', init_source)
+          if not init_match:
+              raise SystemExit("Could not find Python SDK version in sdk/python/contentflow/__init__.py")
+          checks["sdk/python/contentflow/__init__.py"] = init_match.group(1)
+
+          mismatches = {path: value for path, value in checks.items() if value != version}
+          if mismatches:
+              details = "\n".join(f"{path}: {value}" for path, value in mismatches.items())
+              raise SystemExit(f"Release version mismatch for tag v{version}:\n{details}")
+          PY
+
+      - name: Extract release notes from changelog
+        id: notes
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          python <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+          lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+
+          start_index = None
+          for index, line in enumerate(lines):
+              if re.match(rf"^## \[{re.escape(version)}\] - ", line):
+                  start_index = index + 1
+                  break
+
+          if start_index is None:
+              raise SystemExit(f"Missing changelog section for {version}")
+
+          end_index = len(lines)
+          for index in range(start_index, len(lines)):
+              if lines[index].startswith("## ["):
+                  end_index = index
+                  break
+
+          notes = "\n".join(lines[start_index:end_index]).strip()
+          if not notes:
+              raise SystemExit(f"Empty changelog section for {version}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write("value<<EOF\n")
+              handle.write(notes)
+              handle.write("\nEOF\n")
+          PY
+
+  publish-python-sdk:
+    name: Publish Python SDK
+    needs: prepare
+    if: ${{ secrets.PYPI_API_TOKEN != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: sdk/python/pyproject.toml
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build Python SDK
+        working-directory: sdk/python
+        run: python -m build
+
+      - name: Validate Python package
+        working-directory: sdk/python
+        run: twine check dist/*
+
+      - name: Publish Python SDK to PyPI
+        working-directory: sdk/python
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+
+  publish-javascript-sdk:
+    name: Publish JavaScript SDK
+    needs: prepare
+    if: ${{ secrets.NPM_TOKEN != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+          cache: "npm"
+          cache-dependency-path: sdk/javascript/package-lock.json
+
+      - name: Install dependencies
+        working-directory: sdk/javascript
+        run: npm ci
+
+      - name: Test JavaScript SDK
+        working-directory: sdk/javascript
+        run: npm test
+
+      - name: TypeScript check
+        working-directory: sdk/javascript
+        run: npm run typecheck
+
+      - name: Build JavaScript SDK
+        working-directory: sdk/javascript
+        run: npm run build
+
+      - name: Publish JavaScript SDK to npm
+        working-directory: sdk/javascript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+  publish-go-sdk:
+    name: Publish Go SDK tag
+    needs: prepare
+    if: ${{ hashFiles('sdk/go/go.mod') != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: sdk/go/go.mod
+
+      - name: Test Go SDK
+        working-directory: sdk/go
+        run: go test ./...
+
+      - name: Push Go module tag
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          git fetch --tags
+          GO_TAG="sdk/go/v${RELEASE_VERSION}"
+
+          if git rev-parse "$GO_TAG" >/dev/null 2>&1; then
+            echo "Go module tag already exists: $GO_TAG"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$GO_TAG" "$GITHUB_SHA"
+          git push origin "$GO_TAG"
+
+  publish-docker-image:
+    name: Publish Docker image
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  create-github-release:
+    name: Create GitHub release
+    needs:
+      - prepare
+      - publish-python-sdk
+      - publish-javascript-sdk
+      - publish-go-sdk
+      - publish-docker-image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ needs.prepare.outputs.notes }}

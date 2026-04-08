@@ -1,0 +1,47 @@
+---
+title: Introduction
+description: ContentFlow unifies multi-platform publishing, AI video generation, analytics, and webhook operations behind one API.
+---
+
+# Build once. Distribute everywhere.
+
+ContentFlow exposes one API for:
+
+- Multi-platform post creation and scheduling
+- AI video generation with optional auto-publish
+- Content Bomb expansion from one topic to many channel variants
+- Comment collection and AI-assisted replies
+- Webhook delivery replay and dead-letter recovery
+- Analytics, trending, billing, and workspace operations
+
+## Base URL
+
+```txt
+https://contentflow-api.railway.app
+```
+
+## What to read first
+
+1. [Quickstart](/quickstart) to make a real post in under five minutes.
+2. [Authentication](/authentication) to issue and rotate API keys safely.
+3. [First post guide](/guides/first-post) if you want the request and response flow end-to-end.
+4. [API reference](/api-reference/overview) when you are ready to inspect every endpoint.
+
+## Product surface
+
+| Area | Core endpoints |
+| --- | --- |
+| Posts | `POST /api/v1/posts`, `GET /api/v1/posts`, `DELETE /api/v1/posts/{id}` |
+| Accounts | `POST /api/v1/accounts/connect/{platform}`, `GET /api/v1/accounts` |
+| Videos | `POST /api/v1/videos/generate`, `GET /api/v1/videos/{id}` |
+| Webhooks | `GET /api/v1/webhooks/dead-letters`, `POST /api/v1/webhooks/{webhook_id}/redeliver` |
+| Analytics | `GET /api/v1/analytics*` endpoints in the generated reference |
+| Privacy & consent | `POST /api/v1/consent/grant`, `POST /api/v1/privacy/export` |
+
+## Platform coverage
+
+ContentFlow currently ships adapters for 21 destination platforms:
+
+YouTube, TikTok, Instagram, X, LinkedIn, Facebook, Threads, Pinterest, Reddit, Bluesky, Snapchat, Telegram, WordPress, Google Business Profile, Naver Blog, Tistory, Kakao, note.com, LINE, Mastodon, and Medium.
+
+Use the [Platforms](/platforms/youtube) section for per-platform content types, OAuth notes, limitations, and example payloads.

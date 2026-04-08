@@ -1,0 +1,30 @@
+---
+title: Kakao
+description: Publish Kakao-compatible updates through ContentFlow.
+---
+
+# Kakao
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Kakao](https://cdn.simpleicons.org/kakaotalk/FFCD00) |
+| Supported content types | Story-style text and image updates |
+| OAuth support in ContentFlow | Not yet via first-party account connect |
+| OAuth scopes | Managed through your own Kakao integration credentials |
+| Main limitation | This destination is regional and should use Korea-native packaging |
+
+## Notes
+
+- Kakao is best used for local audience touchpoints rather than generic global copy.
+- Keep creative and wording short and immediate.
+- It is often bundled with Naver Blog and Tistory in Korea-first flows.
+
+## Example
+
+```json
+{
+  "text": "신규 공지와 업데이트를 공유합니다.",
+  "platforms": ["kakao"],
+  "media_type": "text"
+}
+```

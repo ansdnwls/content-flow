@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ContentFlow Vertical Config",
+  "description": "Configuration schema for ContentFlow vertical products",
+  "type": "object",
+  "required": ["id", "name", "tagline", "brand", "domain", "target", "pricing", "features", "landing", "dashboard"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Unique vertical identifier (lowercase, no spaces)"
+    },
+    "name": { "type": "string", "description": "Display name" },
+    "tagline": { "type": "string", "description": "One-line tagline" },
+    "description": { "type": "string", "description": "Detailed description" },
+    "brand": {
+      "type": "object",
+      "required": ["colors"],
+      "properties": {
+        "logo": { "type": "string" },
+        "favicon": { "type": "string" },
+        "colors": {
+          "type": "object",
+          "required": ["primary", "secondary", "accent", "bg", "text"],
+          "properties": {
+            "primary": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+            "secondary": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+            "accent": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+            "bg": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+            "text": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+          }
+        },
+        "font": {
+          "type": "object",
+          "properties": {
+            "display": { "type": "string" },
+            "body": { "type": "string" },
+            "mono": { "type": "string" }
+          }
+        }
+      }
+    },
+    "domain": {
+      "type": "object",
+      "properties": {
+        "primary": { "type": "string" },
+        "api": { "type": "string" },
+        "docs": { "type": "string" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "persona": { "type": "string" },
+        "pain_points": { "type": "array", "items": { "type": "string" } },
+        "language": { "type": "array", "items": { "type": "string" } },
+        "region": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "pricing": {
+      "type": "object",
+      "required": ["currency", "plans"],
+      "properties": {
+        "currency": { "type": "string", "enum": ["USD", "KRW", "EUR", "JPY"] },
+        "plans": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "price_monthly", "features"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "price_monthly": { "type": "number", "minimum": 0 },
+              "features": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "core": { "type": "array", "items": { "type": "string" } },
+        "platforms_enabled": { "type": "array", "items": { "type": "string" } },
+        "platforms_hero": { "type": "array", "items": { "type": "string" } },
+        "hide": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "landing": {
+      "type": "object",
+      "properties": {
+        "hero": {
+          "type": "object",
+          "properties": {
+            "headline": { "type": "string" },
+            "sub": { "type": "string" },
+            "cta_primary": { "type": "string" },
+            "cta_secondary": { "type": "string" }
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["hero", "how_it_works", "platforms", "features", "pricing", "testimonials", "faq", "cta_footer"]
+          }
+        }
+      }
+    },
+    "dashboard": {
+      "type": "object",
+      "properties": {
+        "home_widgets": { "type": "array", "items": { "type": "string" } },
+        "nav": { "type": "array", "items": { "type": "string" } },
+        "onboarding_steps": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,53 @@
+---
+title: Multi-platform
+description: Publish once, let ContentFlow fan out to the connected account set.
+---
+
+# Multi-platform publishing
+
+The post model is intentionally simple:
+
+- One message or asset set
+- Many destination platforms
+- Optional per-platform overrides in `platform_options`
+
+## Example payload
+
+```json
+{
+  "text": "Quarterly launch day is live.",
+  "platforms": ["youtube", "instagram", "linkedin", "x_twitter"],
+  "media_urls": ["https://cdn.example.com/launch.mp4"],
+  "media_type": "video",
+  "platform_options": {
+    "youtube": {
+      "title": "Quarterly launch walkthrough",
+      "privacy": "public"
+    },
+    "instagram": {
+      "caption": "Launch day. Full rollout is live."
+    },
+    "linkedin": {
+      "title": "Quarterly launch walkthrough"
+    }
+  }
+}
+```
+
+## How ContentFlow resolves delivery
+
+1. Each requested platform is matched to the newest connected account for that platform.
+2. Delivery rows are created per platform.
+3. Publish workers apply platform throttling where needed.
+4. Status is tracked per delivery plus as a job-level aggregate.
+
+## Batch creation
+
+When you already have a queue of posts, use `POST /api/v1/posts/bulk`.
+
+Modes:
+
+- `all_or_nothing`: reject the whole batch on quota failure
+- `partial`: create as many posts as remaining quota allows
+
+This is the right path for editorial calendars, bulk imports, and agency workflows.

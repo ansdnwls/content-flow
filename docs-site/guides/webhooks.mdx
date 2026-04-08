@@ -1,0 +1,48 @@
+---
+title: Webhooks
+description: Inspect delivery history, dead letters, and replay webhook deliveries.
+---
+
+# Webhooks
+
+ContentFlow stores webhook delivery attempts and exposes replay APIs for failed deliveries.
+
+## Dead-letter queue
+
+List deliveries that exhausted retries:
+
+```bash
+curl https://contentflow-api.railway.app/api/v1/webhooks/dead-letters \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+## Delivery history for one webhook
+
+```bash
+curl https://contentflow-api.railway.app/api/v1/webhooks/{webhook_id}/deliveries \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+## Redeliver the most recent event
+
+```bash
+curl -X POST https://contentflow-api.railway.app/api/v1/webhooks/{webhook_id}/redeliver \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+## Replay a historical delivery
+
+```bash
+curl -X POST https://contentflow-api.railway.app/api/v1/webhooks/deliveries/{delivery_id}/replay \
+  -H "X-API-Key: cf_live_replace_me"
+```
+
+## What to store in your receiver
+
+- The raw request body
+- The signature header
+- The timestamp header
+- The ContentFlow delivery ID
+- Your own processing result
+
+That is enough to debug duplicates, signature mismatches, or application-level failures after the fact.

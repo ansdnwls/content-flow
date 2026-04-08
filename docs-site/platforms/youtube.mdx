@@ -1,0 +1,37 @@
+---
+title: YouTube
+description: Publish video jobs and shorts metadata to YouTube through ContentFlow.
+---
+
+# YouTube
+
+| Field | Value |
+| --- | --- |
+| Logo | ![YouTube](https://cdn.simpleicons.org/youtube/FF0000) |
+| Supported content types | Video uploads, Shorts, channel metadata overrides |
+| OAuth support in ContentFlow | Yes |
+| OAuth scopes | `https://www.googleapis.com/auth/youtube.upload`, `https://www.googleapis.com/auth/youtube.readonly` |
+| Main limitation | Requires a connected YouTube account before publish jobs will leave `pending` |
+
+## Notes
+
+- Use `media_type: "video"` with at least one `media_url`.
+- Set YouTube-specific options in `platform_options.youtube`.
+- Throttling rules are applied automatically during publish bursts.
+
+## Example
+
+```json
+{
+  "text": "New release walkthrough.",
+  "platforms": ["youtube"],
+  "media_urls": ["https://cdn.example.com/release.mp4"],
+  "media_type": "video",
+  "platform_options": {
+    "youtube": {
+      "title": "Release walkthrough",
+      "privacy": "public"
+    }
+  }
+}
+```

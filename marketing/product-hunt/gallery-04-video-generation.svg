@@ -1,0 +1,20 @@
+<svg width="1200" height="600" viewBox="0 0 1200 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="600" rx="36" fill="#120A14"/>
+  <text x="74" y="94" fill="#FFD23F" font-family="Arial" font-size="22" font-weight="700" letter-spacing="4">AI VIDEO GENERATION</text>
+  <text x="74" y="162" fill="#FFF6EF" font-family="Arial" font-size="68" font-weight="800">Generate once.</text>
+  <text x="74" y="226" fill="#FFF6EF" font-family="Arial" font-size="68" font-weight="800">Publish everywhere.</text>
+  <rect x="74" y="286" width="540" height="186" rx="30" fill="#1C121B" stroke="#3B2327"/>
+  <rect x="102" y="320" width="484" height="14" rx="7" fill="#33202A"/>
+  <rect x="102" y="320" width="338" height="14" rx="7" fill="url(#paint0_linear)"/>
+  <text x="102" y="370" fill="#FFF6EF" font-family="Arial" font-size="30" font-weight="700">yt-factory job running</text>
+  <text x="102" y="410" fill="#D3C1B6" font-family="Arial" font-size="24">Auto-publish enabled for 6 selected endpoints.</text>
+  <g transform="translate(708 222)">
+    <rect width="120" height="120" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="34" y="70" fill="#FF6B35" font-family="Arial" font-size="34" font-weight="800">YT</text>
+    <rect x="146" width="120" height="120" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="182" y="70" fill="#06FFA5" font-family="Arial" font-size="34" font-weight="800">IN</text>
+    <rect x="292" width="120" height="120" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="326" y="70" fill="#FFD23F" font-family="Arial" font-size="34" font-weight="800">KK</text>
+    <rect y="146" width="120" height="120" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="34" y="216" fill="#FFF6EF" font-family="Arial" font-size="34" font-weight="800">TH</text>
+    <rect x="146" y="146" width="120" height="120" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="182" y="216" fill="#06FFA5" font-family="Arial" font-size="34" font-weight="800">LN</text>
+    <rect x="292" y="146" width="120" height="120" rx="28" fill="#1C121B" stroke="#3B2327"/><text x="326" y="216" fill="#FF8F6A" font-family="Arial" font-size="34" font-weight="800">RD</text>
+  </g>
+  <defs><linearGradient id="paint0_linear" x1="102" y1="327" x2="440" y2="327" gradientUnits="userSpaceOnUse"><stop stop-color="#FF6B35"/><stop offset="0.58" stop-color="#FFD23F"/><stop offset="1" stop-color="#06FFA5"/></linearGradient></defs>
+</svg>

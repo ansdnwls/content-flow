@@ -1,0 +1,171 @@
+{
+  "nav": {
+    "platforms": "Platforms",
+    "signal": "Signal",
+    "pricing": "Pricing",
+    "docs": "Docs",
+    "api_docs": "API Docs",
+    "start_free": "Start Free"
+  },
+  "hero": {
+    "eyebrow": "Signal burst for creator operations",
+    "kicker": "The API for creators who ship.",
+    "headline": "One topic. 21 platforms. Zero clicks.",
+    "lede": "ContentFlow turns a brief into posts, videos, comment replies, and regional distribution flows without making operators babysit every channel.",
+    "cta_primary": "Start free",
+    "cta_secondary": "See the API",
+    "proof_1": "yt-factory generation",
+    "proof_2": "regional channel coverage",
+    "proof_3": "comment autopilot"
+  },
+  "burst_field": {
+    "center_title": "Input",
+    "center_subtitle": "1 topic enters"
+  },
+  "code_demo": {
+    "eyebrow": "Code demo",
+    "title": "Code as product surface, not an afterthought",
+    "description": "Switch between SDKs and watch the same orchestration model drive a live-looking publish queue on the right.",
+    "live_distribution": "Live distribution",
+    "fan_out": "21-channel fan-out",
+    "queued": "Queued",
+    "posted": "Posted",
+    "localized": "Localized"
+  },
+  "platforms": {
+    "eyebrow": "Platform coverage",
+    "title": "Not just the usual social stack",
+    "description": "Generic schedulers flatten every network into the same checkbox list. ContentFlow treats each platform as a real endpoint with its own role in the burst."
+  },
+  "features": {
+    "eyebrow": "Core signal",
+    "title": "Three systems that make the workflow unfair",
+    "cards": {
+      "bomb": {
+        "eyebrow": "Content Bomb",
+        "title": "Detonate one brief into a full campaign matrix.",
+        "description": "Split one idea into platform-native hooks, post bodies, carousel beats, blog outlines, and thumbnail prompts in a single pass.",
+        "bullet": "21 outputs spin up from one input without copy-paste ops.",
+        "stat": "4.3x faster launch cycles"
+      },
+      "autopilot": {
+        "eyebrow": "Comment Autopilot",
+        "title": "Keep every channel responsive without staffing a war room.",
+        "description": "Collect cross-platform replies, classify intent, and draft brand-safe responses before conversations cool off.",
+        "bullet": "Operators stay in control while the queue keeps moving.",
+        "stat": "92% response coverage"
+      },
+      "viral": {
+        "eyebrow": "Viral Score",
+        "title": "Rank ideas before production money gets burned.",
+        "description": "Model packaging quality, hook strength, spread potential, and regional fit so the team only produces what has leverage.",
+        "bullet": "Greenlight topics with signal, not gut feel.",
+        "stat": "+27% average lift"
+      }
+    }
+  },
+  "pricing": {
+    "eyebrow": "Pricing",
+    "title": "Buy leverage, not more dashboard debt",
+    "monthly": "Monthly",
+    "annual": "Annual",
+    "month": "/month",
+    "most_popular": "Most Popular",
+    "custom": "Custom",
+    "talk_to_us": "talk to us",
+    "plans": {
+      "free": {
+        "name": "Free",
+        "description": "For testing the API shape and validating your first publishing burst.",
+        "features": ["20 posts / month", "3 AI videos / month", "2 platform bundles", "Docs + SDK access"]
+      },
+      "build": {
+        "name": "Build",
+        "description": "For solo operators and compact teams who need distribution leverage every week.",
+        "features": ["240 posts / month", "20 AI videos / month", "Content Bomb", "Comment Autopilot"]
+      },
+      "scale": {
+        "name": "Scale",
+        "description": "For brands and agencies running multiple content lanes with real volume targets.",
+        "features": ["Unlimited posts", "100 AI videos / month", "Regional platform coverage", "Advanced analytics"]
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "For media ops, internal growth teams, and partners with governance or SLA requirements.",
+        "features": ["Custom limits", "Private onboarding", "Dedicated roadmap channel", "Custom compliance controls"]
+      }
+    }
+  },
+  "proof": {
+    "eyebrow": "Proof",
+    "title": "Operational signal that feels live",
+    "stats": {
+      "teams": "teams shipping weekly",
+      "actions": "platform actions per day",
+      "minutes": "avg. minutes saved per launch"
+    }
+  },
+  "testimonials": [
+    {
+      "quote": "We stopped treating cross-platform publishing like a checklist. ContentFlow turned it into one motion system.",
+      "name": "Jiwoo Park",
+      "role": "Head of Content, Daybreak Studio"
+    },
+    {
+      "quote": "The Korea and Japan endpoints mattered. Every generic scheduler looked global until we hit the actual channel mix.",
+      "name": "Mina Chen",
+      "role": "Growth Ops, Horizon Commerce"
+    },
+    {
+      "quote": "Comment Autopilot took the most fragile part of our workflow and made it operational instead of reactive.",
+      "name": "Alex Morgan",
+      "role": "Audience Lead, North Signal"
+    }
+  ],
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Questions teams ask before they stop copy-pasting",
+    "items": [
+      {
+        "question": "Is this just a scheduler with nicer branding?",
+        "answer": "No. The model is orchestration, not calendar management. ContentFlow handles generation, distribution, and reply operations in one system."
+      },
+      {
+        "question": "Can we start with one platform and expand later?",
+        "answer": "Yes. Most teams begin with two or three core channels, then expand once the distribution playbook is stable."
+      },
+      {
+        "question": "Why highlight Korea and Japan-specific platforms?",
+        "answer": "Because that is where generic global tooling usually breaks. ContentFlow treats regional coverage as a first-class feature, not an afterthought."
+      },
+      {
+        "question": "How does video generation connect to publishing?",
+        "answer": "Video jobs can feed directly into a publish workflow so the output URL, metadata, and posting instructions move as one unit."
+      }
+    ]
+  },
+  "cta": {
+    "eyebrow": "Ready to ship",
+    "title": "Start with the API. Keep the card in your wallet.",
+    "description": "Run the first burst on the free tier, then scale once the workflow proves it can carry real volume.",
+    "cta_primary": "Start free",
+    "cta_secondary": "Read the docs"
+  },
+  "footer": {
+    "tagline": "Signal-first orchestration for creators who need to ship one idea across every relevant channel.",
+    "home": "Home",
+    "docs": "Docs",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "pricing": "Pricing"
+  },
+  "rail": {
+    "label": "Burst route",
+    "items": [
+      "Topic packaged into 12 post variants",
+      "Video job dispatched to yt-factory",
+      "KR + JP channels receive locale-aware copy",
+      "Replies queued into Autopilot"
+    ]
+  }
+}

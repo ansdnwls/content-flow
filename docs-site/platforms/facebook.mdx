@@ -1,0 +1,31 @@
+---
+title: Facebook
+description: Publish Facebook feed, photo, and video content through ContentFlow.
+---
+
+# Facebook
+
+| Field | Value |
+| --- | --- |
+| Logo | ![Facebook](https://cdn.simpleicons.org/facebook/1877F2) |
+| Supported content types | Feed posts, image posts, video posts |
+| OAuth support in ContentFlow | Yes |
+| OAuth scopes | `pages_manage_posts`, `pages_read_engagement`, `pages_show_list` |
+| Main limitation | Publishing targets must map to a page account rather than a generic personal profile |
+
+## Notes
+
+- Facebook shares the Meta OAuth flow with Instagram and Threads.
+- Use image or video payloads when you want stronger distribution than text-only updates.
+- Platform-specific overrides belong in `platform_options.facebook`.
+
+## Example
+
+```json
+{
+  "text": "Product update is live.",
+  "platforms": ["facebook"],
+  "media_urls": ["https://cdn.example.com/update.jpg"],
+  "media_type": "image"
+}
+```

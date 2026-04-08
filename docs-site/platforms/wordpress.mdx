@@ -1,0 +1,30 @@
+---
+title: WordPress
+description: Publish long-form content to WordPress through ContentFlow.
+---
+
+# WordPress
+
+| Field | Value |
+| --- | --- |
+| Logo | ![WordPress](https://cdn.simpleicons.org/wordpress/21759B) |
+| Supported content types | Articles, long-form posts, image-backed blog entries |
+| OAuth support in ContentFlow | Not required |
+| OAuth scopes | Application password or site token flow |
+| Main limitation | WordPress is best for article-style payloads, not short social fragments |
+
+## Notes
+
+- Use WordPress for canonical long-form content.
+- Pair it with Medium, Naver Blog, or Tistory when you want blog distribution across regions.
+- Rich formatting should be handled in your content generation layer before submission.
+
+## Example
+
+```json
+{
+  "text": "Full release analysis with implementation notes.",
+  "platforms": ["wordpress"],
+  "media_type": "text"
+}
+```

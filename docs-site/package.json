@@ -1,0 +1,13 @@
+{
+  "name": "contentflow-docs-site",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "sync:openapi": "python ..\\scripts\\export_openapi.py && node .\\scripts\\sync-openapi.mjs",
+    "build": "npm run sync:openapi && mintlify openapi-check ./openapi.json && mintlify validate --disable-openapi && mintlify broken-links",
+    "dev": "npm run sync:openapi && mintlify dev --no-open"
+  },
+  "devDependencies": {
+    "mintlify": "4.2.498"
+  }
+}
