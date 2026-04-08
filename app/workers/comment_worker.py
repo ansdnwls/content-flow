@@ -103,3 +103,22 @@ def collect_comments_task() -> dict:
 @celery_app.task(name="contentflow.auto_reply_comments")
 def auto_reply_comments_task() -> dict:
     return asyncio.run(run_auto_reply_pending())
+
+
+@celery_app.task(name="contentflow.learn_channel_tone")
+def learn_channel_tone_task(channel_id: str, user_id: str) -> dict:
+    """Celery task: learn tone for a YouTube channel."""
+    from app.services.youtube_comment_autopilot import (
+        ToneLearningError,
+        YouTubeCommentAutopilot,
+    )
+
+    try:
+        tone = asyncio.run(
+            YouTubeCommentAutopilot().learn_channel_tone(channel_id, user_id)
+        )
+        return {"status": "completed", "sample_size": tone.sample_size}
+    except ToneLearningError as exc:
+        return {"status": "failed", "error": exc.reason}
+    except Exception as exc:
+        return {"status": "failed", "error": str(exc)}

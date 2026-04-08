@@ -2,21 +2,94 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+import logging
 from typing import Any
 
 import httpx
+from pydantic import BaseModel, Field
 
 from app.adapters.youtube import YouTubeAdapter
+from app.config import get_settings
 from app.core.db import get_supabase
 from app.oauth.token_store import get_valid_credentials
 from app.services.comment_service import CommentService
 
+logger = logging.getLogger(__name__)
 
-@dataclass(frozen=True)
-class ChannelTone:
-    tone_profile: dict[str, Any]
-    sample_size: int
+MIN_SAMPLES_FOR_LEARNING = 10
+MAX_SAMPLES_FOR_LEARNING = 100
+
+TONE_ANALYSIS_PROMPT = """\
+You are a tone analyst. Analyze the following YouTube comment replies from a creator \
+and produce a JSON object describing their communication style.
+
+Replies:
+{replies_text}
+
+Return ONLY a JSON object with these exact fields:
+- "average_length": integer, average character count per reply
+- "emoji_frequency": float 0-1, how often emojis appear (0=never, 1=every reply)
+- "greeting_patterns": list of up to 3 common greeting phrases (e.g. ["감사합니다!", "안녕하세요"])
+- "formality": one of "formal", "casual", "mixed"
+- "representative_phrases": list of exactly 5 characteristic expressions
+- "style_summary": one sentence describing overall tone
+
+JSON only, no markdown fences."""
+
+
+class ChannelTone(BaseModel):
+    """Learned communication style for a YouTube channel's replies."""
+
+    average_length: int = 0
+    emoji_frequency: float = 0.0
+    greeting_patterns: list[str] = Field(default_factory=list)
+    formality: str = "casual"
+    representative_phrases: list[str] = Field(default_factory=list)
+    style_summary: str = "friendly concise"
+    sample_size: int = 0
+
+
+class ToneLearningError(Exception):
+    """Raised when tone learning fails."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+async def _analyze_tone_with_claude(replies: list[str]) -> dict[str, Any]:
+    """Call Claude API to analyze reply tone. Raises on failure."""
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        raise ToneLearningError("ANTHROPIC_API_KEY not configured")
+
+    replies_text = "\n---\n".join(replies[:MAX_SAMPLES_FOR_LEARNING])
+    prompt = TONE_ANALYSIS_PROMPT.format(replies_text=replies_text)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{settings.anthropic_api_base_url.rstrip('/')}/messages",
+            headers={
+                "x-api-key": settings.anthropic_api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": settings.anthropic_model,
+                "max_tokens": 500,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        text_parts = [
+            p["text"]
+            for p in payload.get("content", [])
+            if p.get("type") == "text"
+        ]
+        raw_text = "".join(text_parts).strip()
+        return json.loads(raw_text)
 
 
 async def list_recent_video_ids(channel_id: str, *, access_token: str) -> list[str]:
@@ -46,7 +119,11 @@ class YouTubeCommentAutopilot:
         self.comment_service = CommentService()
 
     async def learn_channel_tone(self, channel_id: str, user_id: str) -> ChannelTone:
-        """Infer a lightweight tone profile from prior AI or manual replies."""
+        """Analyze prior replies with Claude to learn channel communication style.
+
+        Requires at least MIN_SAMPLES_FOR_LEARNING (10) replies.
+        Caps at MAX_SAMPLES_FOR_LEARNING (100) to control cost.
+        """
         sb = get_supabase()
         comments = (
             sb.table("comments")
@@ -59,34 +136,78 @@ class YouTubeCommentAutopilot:
         replies = [row["ai_reply"] for row in comments if row.get("ai_reply")]
         sample_size = len(replies)
 
-        avg_length = (
-            round(sum(len(reply) for reply in replies) / sample_size, 2)
-            if sample_size
-            else 0.0
-        )
-        profile = {
-            "average_reply_length": avg_length,
-            "uses_questions": any("?" in reply for reply in replies),
-            "style": "friendly concise" if sample_size else "friendly concise",
-        }
-
-        result = (
-            sb.table("ytboost_channel_tones")
-            .upsert(
-                {
-                    "user_id": user_id,
-                    "youtube_channel_id": channel_id,
-                    "tone_profile": profile,
-                    "sample_size": sample_size,
-                },
-                on_conflict="user_id,youtube_channel_id",
+        if sample_size < MIN_SAMPLES_FOR_LEARNING:
+            raise ToneLearningError(
+                f"Not enough reply samples: {sample_size} < {MIN_SAMPLES_FOR_LEARNING}"
             )
-            .execute()
+
+        analysis = await _analyze_tone_with_claude(replies[:MAX_SAMPLES_FOR_LEARNING])
+
+        tone = ChannelTone(
+            average_length=analysis.get("average_length", 0),
+            emoji_frequency=analysis.get("emoji_frequency", 0.0),
+            greeting_patterns=analysis.get("greeting_patterns", []),
+            formality=analysis.get("formality", "casual"),
+            representative_phrases=analysis.get("representative_phrases", []),
+            style_summary=analysis.get("style_summary", "friendly concise"),
+            sample_size=min(sample_size, MAX_SAMPLES_FOR_LEARNING),
         )
-        row = result.data[0]
+
+        profile = tone.model_dump(exclude={"sample_size"})
+        sb.table("ytboost_channel_tones").upsert(
+            {
+                "user_id": user_id,
+                "youtube_channel_id": channel_id,
+                "tone_profile": profile,
+                "sample_size": tone.sample_size,
+            },
+            on_conflict="user_id,youtube_channel_id",
+        ).execute()
+
+        return tone
+
+    def _build_tone_context(self, tone: ChannelTone) -> str:
+        """Build a system prompt snippet from a learned tone."""
+        parts = [
+            f"Reply style: {tone.style_summary}.",
+            f"Formality: {tone.formality}.",
+            f"Target length: ~{tone.average_length} chars.",
+        ]
+        if tone.greeting_patterns:
+            parts.append(f"Common greetings: {', '.join(tone.greeting_patterns)}.")
+        if tone.representative_phrases:
+            parts.append(
+                f"Characteristic phrases: {', '.join(tone.representative_phrases)}."
+            )
+        if tone.emoji_frequency > 0.3:
+            parts.append("Use emojis occasionally.")
+        elif tone.emoji_frequency < 0.1:
+            parts.append("Avoid emojis.")
+        return " ".join(parts)
+
+    async def get_stored_tone(self, channel_id: str, user_id: str) -> ChannelTone | None:
+        """Load previously learned tone from DB, if any."""
+        sb = get_supabase()
+        row = (
+            sb.table("ytboost_channel_tones")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("youtube_channel_id", channel_id)
+            .maybe_single()
+            .execute()
+            .data
+        )
+        if not row:
+            return None
+        profile = row.get("tone_profile") or {}
         return ChannelTone(
-            tone_profile=row.get("tone_profile") or profile,
-            sample_size=row.get("sample_size", sample_size),
+            average_length=profile.get("average_length", 0),
+            emoji_frequency=profile.get("emoji_frequency", 0.0),
+            greeting_patterns=profile.get("greeting_patterns", []),
+            formality=profile.get("formality", "casual"),
+            representative_phrases=profile.get("representative_phrases", []),
+            style_summary=profile.get("style_summary", "friendly concise"),
+            sample_size=row.get("sample_size", 0),
         )
 
     async def run_for_channel(
@@ -130,7 +251,8 @@ class YouTubeCommentAutopilot:
             access_token=credentials["access_token"],
         )
 
-        tone = await self.learn_channel_tone(channel_id, user_id)
+        tone = await self.get_stored_tone(channel_id, user_id)
+        context = self._build_tone_context(tone) if tone else ""
         prepared = 0
         replied = 0
         collected = 0
@@ -156,10 +278,6 @@ class YouTubeCommentAutopilot:
             )
 
             for comment in pending_rows:
-                context = (
-                    f"Channel tone: {tone.tone_profile.get('style', 'friendly concise')}. "
-                    f"Average reply length: {tone.tone_profile.get('average_reply_length', 0)}."
-                )
                 if mode == "auto":
                     result = await self.comment_service.auto_reply(
                         comment_id=comment["id"],

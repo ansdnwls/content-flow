@@ -14,9 +14,13 @@ from app.core.cache import invalidate_user_cache
 from app.core.db import get_supabase
 from app.core.errors import NotFoundError
 from app.services.shorts_extractor import extract_shorts
-from app.services.youtube_comment_autopilot import YouTubeCommentAutopilot
+from app.services.youtube_comment_autopilot import (
+    ChannelTone,
+    YouTubeCommentAutopilot,
+)
 from app.services.youtube_trigger import subscribe_to_channel
 from app.services.ytboost_distributor import DistributionResult, YtBoostDistributor
+from app.workers.comment_worker import learn_channel_tone_task
 
 router = APIRouter(prefix="/ytboost", tags=["YtBoost"], responses=COMMON_RESPONSES)
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
@@ -137,6 +141,13 @@ class CommentApproveResponse(BaseModel):
     platform_reply_id: str | None = None
     error: str | None = None
     ai_reply: str | None = None
+
+
+class LearnToneResponse(BaseModel):
+    status: str
+    task_id: str | None = None
+    tone: ChannelTone | None = None
+    error: str | None = None
 
 
 def _channel_response(row: dict[str, Any]) -> ChannelSubscriptionResponse:
@@ -309,6 +320,28 @@ async def delete_channel_subscription(channel_id: str, user: CurrentUser) -> dic
     ).execute()
     await invalidate_user_cache(user.id)
     return {"status": "deleted"}
+
+
+@router.post(
+    "/channels/{channel_id}/learn-tone",
+    response_model=LearnToneResponse,
+    summary="Trigger Channel Tone Learning",
+    responses=NOT_FOUND_ERROR,
+)
+async def learn_channel_tone(
+    channel_id: str,
+    user: CurrentUser,
+) -> LearnToneResponse:
+    """Re-learn the communication tone for a YouTube channel.
+
+    Dispatches a Celery task for async processing.
+    Returns immediately with a task_id.
+    """
+    row = _load_owned_channel(channel_id, user.id)
+    youtube_channel_id = row["youtube_channel_id"]
+
+    task = learn_channel_tone_task.delay(youtube_channel_id, user.id)
+    return LearnToneResponse(status="queued", task_id=task.id)
 
 
 @router.get(

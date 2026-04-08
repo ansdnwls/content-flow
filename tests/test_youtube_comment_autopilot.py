@@ -8,44 +8,44 @@ from tests.fakes import FakeSupabase
 
 
 async def test_learn_channel_tone_persists_profile(monkeypatch) -> None:
+    from unittest.mock import AsyncMock
+
     from app.services.youtube_comment_autopilot import YouTubeCommentAutopilot
 
     fake = FakeSupabase()
     user_id = str(uuid4())
-    fake.insert_row(
-        "comments",
-        {
-            "user_id": user_id,
-            "platform": "youtube",
-            "platform_post_id": "vid_1",
-            "platform_comment_id": "c1",
-            "author_id": "a1",
-            "author_name": "Alice",
-            "text": "Nice",
-            "ai_reply": "Thanks for watching?",
-            "reply_status": "replied",
-        },
-    )
-    fake.insert_row(
-        "comments",
-        {
-            "user_id": user_id,
-            "platform": "youtube",
-            "platform_post_id": "vid_2",
-            "platform_comment_id": "c2",
-            "author_id": "a2",
-            "author_name": "Bob",
-            "text": "Cool",
-            "ai_reply": "Appreciate it.",
-            "reply_status": "replied",
-        },
-    )
+    for i in range(12):
+        fake.insert_row(
+            "comments",
+            {
+                "user_id": user_id,
+                "platform": "youtube",
+                "platform_post_id": f"vid_{i}",
+                "platform_comment_id": f"c{i}",
+                "author_id": f"a{i}",
+                "author_name": f"User{i}",
+                "text": f"Comment {i}",
+                "ai_reply": f"Thanks for watching! Reply {i}",
+                "reply_status": "replied",
+            },
+        )
 
     monkeypatch.setattr("app.services.youtube_comment_autopilot.get_supabase", lambda: fake)
+    monkeypatch.setattr(
+        "app.services.youtube_comment_autopilot._analyze_tone_with_claude",
+        AsyncMock(return_value={
+            "average_length": 30,
+            "emoji_frequency": 0.1,
+            "greeting_patterns": ["Thanks!"],
+            "formality": "casual",
+            "representative_phrases": ["a", "b", "c", "d", "e"],
+            "style_summary": "friendly concise",
+        }),
+    )
 
     tone = await YouTubeCommentAutopilot().learn_channel_tone("chan_123", user_id)
 
-    assert tone.sample_size == 2
+    assert tone.sample_size == 12
     assert fake.tables["ytboost_channel_tones"][0]["youtube_channel_id"] == "chan_123"
 
 
