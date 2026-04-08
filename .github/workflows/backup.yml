@@ -1,0 +1,106 @@
+name: Backup
+
+on:
+  schedule:
+    - cron: "0 17 * * *" # 02:00 KST / 17:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Daily backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+      BACKUP_BUCKETS: ${{ vars.BACKUP_BUCKETS }}
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Validate required secrets
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          test -n "$BACKUP_GPG_PASSPHRASE"
+
+      - name: Build backup timestamp
+        id: stamp
+        run: echo "value=$(date -u +%Y%m%dT%H%M%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Backup database
+        env:
+          OUTPUT_DIR: backups/${{ steps.stamp.outputs.value }}
+        run: |
+          python scripts/backup_db.py \
+            --output-dir "$OUTPUT_DIR" \
+            --encrypt \
+            --passphrase-env BACKUP_GPG_PASSPHRASE
+
+      - name: Backup storage buckets
+        env:
+          OUTPUT_DIR: backups/${{ steps.stamp.outputs.value }}
+        run: |
+          if [ -n "$BACKUP_BUCKETS" ]; then
+            python scripts/backup_files.py --output-dir "$OUTPUT_DIR" --buckets $BACKUP_BUCKETS
+          else
+            python scripts/backup_files.py --output-dir "$OUTPUT_DIR"
+          fi
+
+      - name: Archive backup bundle
+        env:
+          OUTPUT_DIR: backups/${{ steps.stamp.outputs.value }}
+        run: |
+          tar -czf "${{ steps.stamp.outputs.value }}.tar.gz" "$OUTPUT_DIR"
+
+      - name: Configure AWS credentials
+        if: ${{ env.BACKUP_S3_BUCKET != '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-northeast-2' }}
+
+      - name: Upload backup to S3
+        if: ${{ env.BACKUP_S3_BUCKET != '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        run: |
+          PREFIX="${BACKUP_S3_PREFIX:-content-flow}"
+          aws s3 cp \
+            "${{ steps.stamp.outputs.value }}.tar.gz" \
+            "s3://${BACKUP_S3_BUCKET}/${PREFIX}/${{ steps.stamp.outputs.value }}.tar.gz"
+
+      - name: Upload backup artifact
+        if: ${{ env.BACKUP_S3_BUCKET == '' || secrets.AWS_ACCESS_KEY_ID == '' || secrets.AWS_SECRET_ACCESS_KEY == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ steps.stamp.outputs.value }}
+          path: ${{ steps.stamp.outputs.value }}.tar.gz
+          retention-days: 14
+
+      - name: Notify backup failure
+        if: failure() && secrets.BACKUP_ALERT_WEBHOOK_URL != ''
+        env:
+          BACKUP_ALERT_WEBHOOK_URL: ${{ secrets.BACKUP_ALERT_WEBHOOK_URL }}
+        run: |
+          curl -X POST "$BACKUP_ALERT_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":\"ContentFlow backup failed: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
