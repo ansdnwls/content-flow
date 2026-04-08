@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 TISTORY_API = "https://www.tistory.com/apis"
 
@@ -109,3 +117,32 @@ class TistoryAdapter(PlatformAdapter):
             if resp.status_code != 200:
                 return False
             return resp.json().get("tistory", {}).get("status") == "200"
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        """Tistory comment APIs are deprecated; keep the adapter non-throwing."""
+        return []
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        return ReplyResult(
+            success=False,
+            error="TODO: Tistory comment reply is unavailable in the public API",
+        )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        """Tistory no longer provides a supported analytics endpoint for this flow."""
+        return []

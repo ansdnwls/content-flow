@@ -9,6 +9,21 @@ from app.core.cache import invalidate_user_cache
 from app.core.db import get_supabase
 
 ADAPTER_MAP: dict[str, type[PlatformAdapter]] = {}
+SUPPORTED_ANALYTICS_PLATFORMS = frozenset(
+    {
+        "youtube",
+        "tiktok",
+        "instagram",
+        "x_twitter",
+        "linkedin",
+        "facebook",
+        "threads",
+        "naver_blog",
+        "tistory",
+        "kakao",
+        "mastodon",
+    }
+)
 
 
 def _get_adapter_map() -> dict[str, type[PlatformAdapter]]:
@@ -16,9 +31,13 @@ def _get_adapter_map() -> dict[str, type[PlatformAdapter]]:
     if not ADAPTER_MAP:
         from app.adapters.facebook import FacebookAdapter
         from app.adapters.instagram import InstagramAdapter
+        from app.adapters.kakao import KakaoAdapter
         from app.adapters.linkedin import LinkedInAdapter
+        from app.adapters.mastodon import MastodonAdapter
+        from app.adapters.naver_blog import NaverBlogAdapter
         from app.adapters.threads import ThreadsAdapter
         from app.adapters.tiktok import TikTokAdapter
+        from app.adapters.tistory import TistoryAdapter
         from app.adapters.x_twitter import XTwitterAdapter
         from app.adapters.youtube import YouTubeAdapter
 
@@ -31,6 +50,10 @@ def _get_adapter_map() -> dict[str, type[PlatformAdapter]]:
                 "linkedin": LinkedInAdapter,
                 "facebook": FacebookAdapter,
                 "threads": ThreadsAdapter,
+                "naver_blog": NaverBlogAdapter,
+                "tistory": TistoryAdapter,
+                "kakao": KakaoAdapter,
+                "mastodon": MastodonAdapter,
             }
         )
     return ADAPTER_MAP
@@ -47,6 +70,9 @@ class AnalyticsService:
         platform_post_id: str | None = None,
     ) -> list[dict]:
         """Fetch analytics from adapter and store as snapshot."""
+        if platform not in SUPPORTED_ANALYTICS_PLATFORMS:
+            return []
+
         adapters = _get_adapter_map()
         adapter_cls = adapters.get(platform)
         if not adapter_cls:

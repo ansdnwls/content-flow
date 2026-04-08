@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 
 class MastodonAdapter(PlatformAdapter):
@@ -105,3 +113,114 @@ class MastodonAdapter(PlatformAdapter):
                 headers={"Authorization": f"Bearer {credentials['access_token']}"},
             )
             return resp.status_code == 200
+
+    @staticmethod
+    def _parse_created_at(value: str | None) -> datetime:
+        if value:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.now(UTC)
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        instance_url = credentials["instance_url"].rstrip("/")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(
+                f"{instance_url}/api/v1/statuses/{platform_post_id}/context",
+                headers={"Authorization": f"Bearer {credentials['access_token']}"},
+            )
+            if resp.status_code != 200:
+                return []
+
+            comments: list[Comment] = []
+            for item in resp.json().get("descendants", []):
+                created_at = self._parse_created_at(item.get("created_at"))
+                if since and created_at <= since:
+                    continue
+                account = item.get("account", {})
+                comments.append(
+                    Comment(
+                        platform_comment_id=str(item.get("id", "")),
+                        author_id=str(account.get("id", "")),
+                        author_name=account.get("display_name")
+                        or account.get("username", ""),
+                        text=item.get("content", ""),
+                        created_at=created_at,
+                        parent_id=item.get("in_reply_to_id"),
+                        raw=item,
+                    )
+                )
+            return comments
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        instance_url = credentials["instance_url"].rstrip("/")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{instance_url}/api/v1/statuses",
+                headers={"Authorization": f"Bearer {credentials['access_token']}"},
+                data={"status": text, "in_reply_to_id": comment_id},
+            )
+            if resp.status_code not in (200, 201):
+                return ReplyResult(success=False, error=resp.text)
+
+            data = resp.json()
+            return ReplyResult(
+                success=True,
+                platform_comment_id=str(data.get("id", "")),
+            )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        instance_url = credentials["instance_url"].rstrip("/")
+        headers = {"Authorization": f"Bearer {credentials['access_token']}"}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if platform_post_id:
+                resp = await client.get(
+                    f"{instance_url}/api/v1/statuses/{platform_post_id}",
+                    headers=headers,
+                )
+                if resp.status_code != 200:
+                    return []
+
+                data = resp.json()
+                likes = int(data.get("favourites_count", 0))
+                comments = int(data.get("replies_count", 0))
+                shares = int(data.get("reblogs_count", 0))
+                return [
+                    AnalyticsData(
+                        platform=self.platform_name,
+                        platform_post_id=str(data.get("id", platform_post_id)),
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        raw=data,
+                    )
+                ]
+
+            resp = await client.get(
+                f"{instance_url}/api/v1/accounts/verify_credentials",
+                headers=headers,
+            )
+            if resp.status_code != 200:
+                return []
+
+            data = resp.json()
+            return [
+                AnalyticsData(
+                    platform=self.platform_name,
+                    followers=int(data.get("followers_count", 0)),
+                    raw=data,
+                )
+            ]

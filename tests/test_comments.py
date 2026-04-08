@@ -402,6 +402,151 @@ async def test_threads_reply_comment() -> None:
     assert result.platform_comment_id == "thr_reply_publish_1"
 
 
+async def test_naver_blog_get_comments_returns_empty_list() -> None:
+    from app.adapters.naver_blog import NaverBlogAdapter
+
+    adapter = NaverBlogAdapter()
+    comments = await adapter.get_comments("naver_post_1", {"access_token": "tok"})
+    assert comments == []
+
+
+async def test_naver_blog_reply_comment_returns_todo_error() -> None:
+    from app.adapters.naver_blog import NaverBlogAdapter
+
+    adapter = NaverBlogAdapter()
+    result = await adapter.reply_comment(
+        "naver_post_1",
+        "comment_1",
+        "reply",
+        {"access_token": "tok"},
+    )
+    assert result.success is False
+    assert "TODO" in (result.error or "")
+
+
+async def test_tistory_get_comments_returns_empty_list() -> None:
+    from app.adapters.tistory import TistoryAdapter
+
+    adapter = TistoryAdapter()
+    comments = await adapter.get_comments(
+        "tistory_post_1",
+        {"access_token": "tok", "blog_name": "myblog"},
+    )
+    assert comments == []
+
+
+async def test_tistory_reply_comment_returns_todo_error() -> None:
+    from app.adapters.tistory import TistoryAdapter
+
+    adapter = TistoryAdapter()
+    result = await adapter.reply_comment(
+        "tistory_post_1",
+        "comment_1",
+        "reply",
+        {"access_token": "tok", "blog_name": "myblog"},
+    )
+    assert result.success is False
+    assert "TODO" in (result.error or "")
+
+
+@respx.mock
+async def test_kakao_get_comments() -> None:
+    from app.adapters.kakao import KAKAO_API, KakaoAdapter
+
+    respx.get(f"{KAKAO_API}/v1/api/talk/channel/messages/kakao_post_1/comments").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "comments": [
+                    {
+                        "id": "kakao_c1",
+                        "user_id": "user_1",
+                        "nickname": "Mina",
+                        "text": "좋은 글이네요",
+                        "created_at": "2026-04-07T12:00:00Z",
+                    }
+                ]
+            },
+        ),
+    )
+
+    adapter = KakaoAdapter()
+    comments = await adapter.get_comments("kakao_post_1", {"access_token": "tok"})
+    assert len(comments) == 1
+    assert comments[0].author_name == "Mina"
+    assert comments[0].text == "좋은 글이네요"
+
+
+@respx.mock
+async def test_kakao_reply_comment() -> None:
+    from app.adapters.kakao import KAKAO_API, KakaoAdapter
+
+    respx.post(
+        f"{KAKAO_API}/v1/api/talk/channel/messages/kakao_post_1/comments/kakao_c1/reply"
+    ).mock(return_value=httpx.Response(200, json={"id": "kakao_reply_1"}))
+
+    adapter = KakaoAdapter()
+    result = await adapter.reply_comment(
+        "kakao_post_1", "kakao_c1", "감사합니다", {"access_token": "tok"},
+    )
+    assert result.success is True
+    assert result.platform_comment_id == "kakao_reply_1"
+
+
+@respx.mock
+async def test_mastodon_get_comments() -> None:
+    from app.adapters.mastodon import MastodonAdapter
+
+    respx.get("https://mastodon.social/api/v1/statuses/123/context").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "descendants": [
+                    {
+                        "id": "456",
+                        "content": "<p>Hello fediverse</p>",
+                        "created_at": "2026-04-07T12:00:00Z",
+                        "in_reply_to_id": "123",
+                        "account": {
+                            "id": "acct_1",
+                            "display_name": "Nova",
+                            "username": "nova",
+                        },
+                    }
+                ]
+            },
+        ),
+    )
+
+    adapter = MastodonAdapter()
+    comments = await adapter.get_comments(
+        "123",
+        {"instance_url": "https://mastodon.social", "access_token": "tok"},
+    )
+    assert len(comments) == 1
+    assert comments[0].author_name == "Nova"
+    assert comments[0].parent_id == "123"
+
+
+@respx.mock
+async def test_mastodon_reply_comment() -> None:
+    from app.adapters.mastodon import MastodonAdapter
+
+    respx.post("https://mastodon.social/api/v1/statuses").mock(
+        return_value=httpx.Response(200, json={"id": "789"}),
+    )
+
+    adapter = MastodonAdapter()
+    result = await adapter.reply_comment(
+        "123",
+        "456",
+        "Thanks from Mastodon",
+        {"instance_url": "https://mastodon.social", "access_token": "tok"},
+    )
+    assert result.success is True
+    assert result.platform_comment_id == "789"
+
+
 # ---------------------------------------------------------------------------
 # Service tests
 # ---------------------------------------------------------------------------
@@ -561,6 +706,20 @@ async def test_comment_service_auto_reply(monkeypatch) -> None:
             "ThreadsAdapter",
             {"access_token": "tok", "threads_user_id": "user_1"},
         ),
+        ("naver_blog", "naver_blog", "NaverBlogAdapter", {"access_token": "tok"}),
+        (
+            "tistory",
+            "tistory",
+            "TistoryAdapter",
+            {"access_token": "tok", "blog_name": "myblog"},
+        ),
+        ("kakao", "kakao", "KakaoAdapter", {"access_token": "tok"}),
+        (
+            "mastodon",
+            "mastodon",
+            "MastodonAdapter",
+            {"instance_url": "https://mastodon.social", "access_token": "tok"},
+        ),
     ],
 )
 async def test_comment_service_collect_comments_expanded_platforms(
@@ -627,6 +786,20 @@ async def test_comment_service_collect_comments_expanded_platforms(
             "threads",
             "ThreadsAdapter",
             {"access_token": "tok", "threads_user_id": "user_1"},
+        ),
+        ("naver_blog", "naver_blog", "NaverBlogAdapter", {"access_token": "tok"}),
+        (
+            "tistory",
+            "tistory",
+            "TistoryAdapter",
+            {"access_token": "tok", "blog_name": "myblog"},
+        ),
+        ("kakao", "kakao", "KakaoAdapter", {"access_token": "tok"}),
+        (
+            "mastodon",
+            "mastodon",
+            "MastodonAdapter",
+            {"instance_url": "https://mastodon.social", "access_token": "tok"},
         ),
     ],
 )

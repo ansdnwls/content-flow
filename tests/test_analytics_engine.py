@@ -439,6 +439,106 @@ async def test_threads_get_analytics_account() -> None:
     assert results[0].followers == 6400
 
 
+async def test_naver_blog_get_analytics_returns_empty_list() -> None:
+    from app.adapters.naver_blog import NaverBlogAdapter
+
+    adapter = NaverBlogAdapter()
+    results = await adapter.get_analytics("naver_post_1", {"access_token": "test"})
+    assert results == []
+
+
+async def test_tistory_get_analytics_returns_empty_list() -> None:
+    from app.adapters.tistory import TistoryAdapter
+
+    adapter = TistoryAdapter()
+    results = await adapter.get_analytics(
+        "tistory_post_1",
+        {"access_token": "test", "blog_name": "myblog"},
+    )
+    assert results == []
+
+
+@respx.mock
+async def test_kakao_get_analytics_post() -> None:
+    from app.adapters.kakao import KAKAO_API, KakaoAdapter
+
+    respx.get(f"{KAKAO_API}/v1/api/talk/channel/messages/kakao_post_1/insights").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "view_count": 4200,
+                "like_count": 120,
+                "comment_count": 18,
+                "share_count": 7,
+            },
+        ),
+    )
+
+    adapter = KakaoAdapter()
+    results = await adapter.get_analytics("kakao_post_1", {"access_token": "test"})
+    assert len(results) == 1
+    assert results[0].views == 4200
+    assert results[0].platform == "kakao"
+
+
+@respx.mock
+async def test_kakao_get_analytics_account() -> None:
+    from app.adapters.kakao import KAKAO_API, KakaoAdapter
+
+    respx.get(f"{KAKAO_API}/v1/api/talk/channel/insights").mock(
+        return_value=httpx.Response(200, json={"subscriber_count": 9800}),
+    )
+
+    adapter = KakaoAdapter()
+    results = await adapter.get_analytics(None, {"access_token": "test"})
+    assert len(results) == 1
+    assert results[0].followers == 9800
+
+
+@respx.mock
+async def test_mastodon_get_analytics_post() -> None:
+    from app.adapters.mastodon import MastodonAdapter
+
+    respx.get("https://mastodon.social/api/v1/statuses/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "123",
+                "favourites_count": 55,
+                "replies_count": 9,
+                "reblogs_count": 4,
+            },
+        ),
+    )
+
+    adapter = MastodonAdapter()
+    results = await adapter.get_analytics(
+        "123",
+        {"instance_url": "https://mastodon.social", "access_token": "test"},
+    )
+    assert len(results) == 1
+    assert results[0].likes == 55
+    assert results[0].shares == 4
+    assert results[0].platform == "mastodon"
+
+
+@respx.mock
+async def test_mastodon_get_analytics_account() -> None:
+    from app.adapters.mastodon import MastodonAdapter
+
+    respx.get("https://mastodon.social/api/v1/accounts/verify_credentials").mock(
+        return_value=httpx.Response(200, json={"followers_count": 2300}),
+    )
+
+    adapter = MastodonAdapter()
+    results = await adapter.get_analytics(
+        None,
+        {"instance_url": "https://mastodon.social", "access_token": "test"},
+    )
+    assert len(results) == 1
+    assert results[0].followers == 2300
+
+
 # ---------------------------------------------------------------------------
 # Service tests
 # ---------------------------------------------------------------------------
@@ -498,6 +598,20 @@ async def test_collect_snapshot(monkeypatch) -> None:
             "threads",
             "ThreadsAdapter",
             {"access_token": "test", "threads_user_id": "user_1"},
+        ),
+        ("naver_blog", "naver_blog", "NaverBlogAdapter", {"access_token": "test"}),
+        (
+            "tistory",
+            "tistory",
+            "TistoryAdapter",
+            {"access_token": "test", "blog_name": "myblog"},
+        ),
+        ("kakao", "kakao", "KakaoAdapter", {"access_token": "test"}),
+        (
+            "mastodon",
+            "mastodon",
+            "MastodonAdapter",
+            {"instance_url": "https://mastodon.social", "access_token": "test"},
         ),
     ],
 )
@@ -767,7 +881,7 @@ async def test_collect_unsupported_platform(monkeypatch) -> None:
 
     service = AnalyticsService()
     result = await service.collect_snapshot(
-        "u1", "mastodon", {"access_token": "test"},
+        "u1", "medium", {"access_token": "test"},
     )
     assert result == []
 

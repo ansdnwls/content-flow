@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 NAVER_API = "https://openapi.naver.com"
 BLOG_API = f"{NAVER_API}/blog/writePost.json"
@@ -86,3 +94,32 @@ class NaverBlogAdapter(PlatformAdapter):
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             return resp.status_code == 200
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        """Naver Blog has no stable public comment read API for app-managed posts."""
+        return []
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        return ReplyResult(
+            success=False,
+            error="TODO: Naver Blog comment reply requires a private or unsupported API",
+        )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        """Naver Blog exposes no supported app analytics API in this integration."""
+        return []

@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 KAKAO_API = "https://kapi.kakao.com"
 
@@ -146,3 +154,118 @@ class KakaoAdapter(PlatformAdapter):
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             return resp.status_code == 200
+
+    @staticmethod
+    def _parse_comment_time(value: str | None) -> datetime:
+        if value:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.now(UTC)
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        access_token = credentials["access_token"]
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(
+                f"{KAKAO_API}/v1/api/talk/channel/messages/{platform_post_id}/comments",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"since": since.isoformat()} if since else None,
+            )
+            if resp.status_code != 200:
+                return []
+
+            comments: list[Comment] = []
+            for item in resp.json().get("comments", []):
+                created_at = self._parse_comment_time(item.get("created_at"))
+                comments.append(
+                    Comment(
+                        platform_comment_id=str(item.get("id", "")),
+                        author_id=str(item.get("user_id", "")),
+                        author_name=item.get("nickname", ""),
+                        text=item.get("text", ""),
+                        created_at=created_at,
+                        parent_id=item.get("parent_id"),
+                        raw=item,
+                    )
+                )
+            return comments
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        access_token = credentials["access_token"]
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{KAKAO_API}/v1/api/talk/channel/messages/{platform_post_id}/comments/{comment_id}/reply",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"text": text},
+            )
+            if resp.status_code != 200:
+                return ReplyResult(success=False, error=resp.text)
+
+            data = resp.json()
+            return ReplyResult(
+                success=True,
+                platform_comment_id=str(data.get("id", "")),
+            )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        access_token = credentials["access_token"]
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if platform_post_id:
+                resp = await client.get(
+                    f"{KAKAO_API}/v1/api/talk/channel/messages/{platform_post_id}/insights",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if resp.status_code != 200:
+                    return []
+
+                metrics = resp.json()
+                views = int(metrics.get("view_count", 0))
+                likes = int(metrics.get("like_count", 0))
+                comments = int(metrics.get("comment_count", 0))
+                shares = int(metrics.get("share_count", 0))
+                denominator = views if views > 0 else 1
+                return [
+                    AnalyticsData(
+                        platform=self.platform_name,
+                        platform_post_id=platform_post_id,
+                        views=views,
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        impressions=views,
+                        engagement_rate=round(
+                            (likes + comments + shares) / denominator * 100,
+                            2,
+                        ),
+                        raw=metrics,
+                    )
+                ]
+
+            resp = await client.get(
+                f"{KAKAO_API}/v1/api/talk/channel/insights",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if resp.status_code != 200:
+                return []
+
+            metrics = resp.json()
+            return [
+                AnalyticsData(
+                    platform=self.platform_name,
+                    followers=int(metrics.get("subscriber_count", 0)),
+                    raw=metrics,
+                )
+            ]
