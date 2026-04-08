@@ -22,6 +22,11 @@
     }
   },
 
+  "backend": {
+    "base_url": "https://api.ytboost.dev",
+    "api_version": "v1"
+  },
+
   "domain": {
     "primary": "ytboost.dev",
     "api": "api.ytboost.dev",

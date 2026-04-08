@@ -105,9 +105,74 @@ verticals/<name>/
 | `@contentflow/ui` | Shared React components (Hero, Pricing, FAQ, widgets) |
 | `@contentflow/engine` | ContentFlow API client wrapper |
 
+## Backend Connection
+
+Each vertical's dashboard connects to the ContentFlow API via `@contentflow/engine`.
+
+### Configuration
+
+Add a `backend` section to `config.json`:
+
+```json
+{
+  "backend": {
+    "base_url": "https://api.yourvertical.dev",
+    "api_version": "v1"
+  }
+}
+```
+
+### Environment Variables
+
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_CF_API_URL` | Client + Server | ContentFlow API base URL (overrides config.json) |
+| `CF_API_KEY` | Server only | API key for server-side data fetching |
+
+Priority: `NEXT_PUBLIC_CF_API_URL` > `config.json backend.base_url` > `http://localhost:8000`
+
+### Dashboard API Client
+
+Each vertical has a `dashboard/lib/api.ts` that initializes a shared `CFEngine` instance:
+
+```typescript
+import { CFEngine } from "@contentflow/engine";
+import config from "../../config.json";
+
+const API_URL = process.env.NEXT_PUBLIC_CF_API_URL ?? config.backend?.base_url ?? "http://localhost:8000";
+const API_KEY = process.env.CF_API_KEY ?? "";
+
+export const engine = new CFEngine({ apiUrl: API_URL, apiKey: API_KEY, config });
+```
+
+### Available API Methods
+
+**General** (all verticals):
+- `engine.getPosts()` / `engine.createPost()`
+- `engine.getAccounts()` / `engine.getUsage()` / `engine.getAnalytics()`
+
+**YtBoost**:
+- `engine.listChannels()` / `engine.subscribeChannel()`
+- `engine.listShorts()` / `engine.extractShorts()` / `engine.approveShort()`
+- `engine.listPendingComments()` / `engine.approveComment()`
+
+**ShopSync**:
+- `engine.listProducts()` / `engine.createProduct()` / `engine.publishProduct()`
+
+### Local Development with Backend
+
+```bash
+# Start the API server
+cd /path/to/content-flow && uvicorn app.main:app --reload
+
+# Start the dashboard with API connection
+cd verticals/ytboost/dashboard
+NEXT_PUBLIC_CF_API_URL=http://localhost:8000 CF_API_KEY=cf_live_xxx npm run dev
+```
+
 ## Existing Verticals
 
-| Vertical | Target | Domain |
-|----------|--------|--------|
-| ytboost | YouTube creators (1K-100K subs) | ytboost.dev |
-| shopsync | Ecommerce sellers (SmartStore, Coupang) | shopsync.kr |
+| Vertical | Target | Domain | Backend |
+|----------|--------|--------|---------|
+| ytboost | YouTube creators (1K-100K subs) | ytboost.dev | api.ytboost.dev |
+| shopsync | Ecommerce sellers (SmartStore, Coupang) | shopsync.kr | api.shopsync.kr |

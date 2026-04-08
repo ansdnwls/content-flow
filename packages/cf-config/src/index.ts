@@ -1,3 +1,8 @@
+export interface BackendConfig {
+  readonly base_url: string;
+  readonly api_version: string;
+}
+
 export interface VerticalConfig {
   readonly $schema?: string;
   readonly id: string;
@@ -11,6 +16,7 @@ export interface VerticalConfig {
   readonly features: FeaturesConfig;
   readonly landing: LandingConfig;
   readonly dashboard: DashboardConfig;
+  readonly backend?: BackendConfig;
 }
 
 export interface BrandConfig {

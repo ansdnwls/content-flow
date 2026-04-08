@@ -1,41 +1,98 @@
 import config from "../../config.json";
-import { DistributionMap, ViralScore, RecentPosts, AnalyticsOverview } from "@contentflow/ui/widgets";
+import { DistributionMap, AnalyticsOverview } from "@contentflow/ui/widgets";
+import { engine } from "../lib/api";
 
-const WIDGET_MAP: Record<string, React.ReactNode> = {
-  distribution_map: <DistributionMap key="distribution_map" />,
-  viral_score_trending: <ViralScore key="viral_score" />,
-  recent_posts: <RecentPosts key="recent_posts" />,
-  analytics_overview: <AnalyticsOverview key="analytics_overview" />,
-  youtube_channel_stats: (
-    <div key="youtube_stats" className="rounded-xl bg-[var(--color-text)]/5 p-6">
-      <h3 className="font-semibold mb-4 text-[var(--color-text)]">YouTube Channel</h3>
-      <p className="text-[var(--color-text)]/50 text-sm">Connect your YouTube channel to see stats</p>
+interface ProductItem {
+  readonly id: string;
+  readonly name?: string;
+  readonly text?: string;
+  readonly status: string;
+  readonly platforms?: readonly string[];
+  readonly created_at: string;
+}
+
+async function getProducts(): Promise<{
+  data: readonly ProductItem[];
+  total: number;
+}> {
+  const res = await engine.listProducts(1, 10);
+  if (res.data && "data" in (res.data as object)) {
+    return res.data as { data: readonly ProductItem[]; total: number };
+  }
+  return { data: Array.isArray(res.data) ? (res.data as ProductItem[]) : [], total: 0 };
+}
+
+function ProductList({
+  products,
+}: {
+  products: { data: readonly ProductItem[]; total: number };
+}) {
+  if (products.total === 0) {
+    return (
+      <div className="rounded-xl bg-[var(--color-text)]/5 p-6">
+        <h3 className="font-semibold mb-4 text-[var(--color-text)]">Products</h3>
+        <p className="text-[var(--color-text)]/50 text-sm">
+          No products yet. Create your first product listing to start selling everywhere.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-[var(--color-text)]/5 p-6">
+      <h3 className="font-semibold mb-4 text-[var(--color-text)]">
+        Products ({products.total})
+      </h3>
+      <ul className="space-y-3">
+        {products.data.slice(0, 5).map((p) => (
+          <li
+            key={p.id}
+            className="flex items-center justify-between rounded-lg bg-[var(--color-bg)] p-3"
+          >
+            <div>
+              <p className="font-medium text-[var(--color-text)]">
+                {p.name ?? p.text?.slice(0, 40) ?? "Untitled"}
+              </p>
+              <p className="text-xs text-[var(--color-text)]/50">
+                {new Date(p.created_at).toLocaleDateString()}
+              </p>
+            </div>
+            <span
+              className={`text-xs px-2 py-1 rounded ${
+                p.status === "published"
+                  ? "bg-green-500/20 text-green-400"
+                  : "bg-[var(--color-accent)]/20 text-[var(--color-accent)]"
+              }`}
+            >
+              {p.status}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
-  ),
-  recent_shorts_generated: (
-    <div key="shorts_gen" className="rounded-xl bg-[var(--color-text)]/5 p-6">
-      <h3 className="font-semibold mb-4 text-[var(--color-text)]">Recent Shorts</h3>
-      <p className="text-[var(--color-text)]/50 text-sm">No shorts generated yet</p>
-    </div>
-  ),
-  shop_inventory: (
-    <div key="shop_inv" className="rounded-xl bg-[var(--color-text)]/5 p-6">
-      <h3 className="font-semibold mb-4 text-[var(--color-text)]">Inventory</h3>
-      <p className="text-[var(--color-text)]/50 text-sm">Connect your shop to see inventory</p>
-    </div>
-  ),
-  price_alerts: (
-    <div key="price_alerts" className="rounded-xl bg-[var(--color-text)]/5 p-6">
+  );
+}
+
+function PriceAlerts() {
+  return (
+    <div className="rounded-xl bg-[var(--color-text)]/5 p-6">
       <h3 className="font-semibold mb-4 text-[var(--color-text)]">Price Alerts</h3>
       <p className="text-[var(--color-text)]/50 text-sm">No active alerts</p>
     </div>
-  ),
-};
+  );
+}
 
-export default function DashboardHome() {
-  const widgets = config.dashboard.home_widgets
-    .map((key) => WIDGET_MAP[key])
-    .filter(Boolean);
+export default async function DashboardHome() {
+  let products: { data: readonly ProductItem[]; total: number } = {
+    data: [],
+    total: 0,
+  };
+
+  try {
+    products = await getProducts();
+  } catch {
+    // API unavailable — render with empty data
+  }
 
   return (
     <div>
@@ -43,7 +100,10 @@ export default function DashboardHome() {
         Welcome to {config.name}
       </h1>
       <div className="grid md:grid-cols-2 gap-6">
-        {widgets}
+        <ProductList products={products} />
+        <PriceAlerts />
+        <DistributionMap key="distribution_map" />
+        <AnalyticsOverview key="analytics_overview" />
       </div>
     </div>
   );

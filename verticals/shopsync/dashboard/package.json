@@ -8,9 +8,9 @@
     "start": "next start --port 3200"
   },
   "dependencies": {
-    "@contentflow/config": "workspace:*",
-    "@contentflow/engine": "workspace:*",
-    "@contentflow/ui": "workspace:*",
+    "@contentflow/config": "file:../../../packages/cf-config",
+    "@contentflow/engine": "file:../../../packages/cf-engine",
+    "@contentflow/ui": "file:../../../packages/cf-ui",
     "next": "14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
