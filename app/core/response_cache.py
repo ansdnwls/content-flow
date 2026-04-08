@@ -77,14 +77,25 @@ def _extract_response(bound_args: dict[str, Any]) -> Response | None:
 
 
 async def _resolve_redis(bound_args: dict[str, Any]) -> Redis:
+    compat_getter = _compat_redis_getter()
+    if compat_getter is not None:
+        return await compat_getter()
+
     request = _extract_request(bound_args)
     redis = getattr(getattr(getattr(request, "app", None), "state", None), "redis", None)
     if redis is not None:
         return redis
-    return await _get_compat_redis()
+    return await get_redis()
 
 
 async def _get_compat_redis() -> Redis:
+    compat_getter = _compat_redis_getter()
+    if compat_getter is not None:
+        return await compat_getter()
+    return await get_redis()
+
+
+def _compat_redis_getter() -> Callable[[], Awaitable[Redis]] | None:
     cache_module = sys.modules.get("app.core.cache")
     compat_getter = getattr(cache_module, "get_redis", None)
     if (
@@ -92,8 +103,10 @@ async def _get_compat_redis() -> Redis:
         and compat_getter is not _DEFAULT_GET_REDIS
         and compat_getter is not get_redis
     ):
-        return await compat_getter()
-    return await get_redis()
+        return compat_getter
+    if get_redis is not _DEFAULT_GET_REDIS:
+        return get_redis
+    return None
 
 
 def _extract_user_id(bound_args: dict[str, Any], request: Any | None) -> str:
