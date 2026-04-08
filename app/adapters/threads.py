@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 THREADS_API = "https://graph.threads.net/v1.0"
 
@@ -18,6 +26,12 @@ _MAX_POLL_ATTEMPTS = 30
 
 class ThreadsAdapter(PlatformAdapter):
     platform_name = "threads"
+
+    @staticmethod
+    def _parse_timestamp(value: str | None) -> datetime:
+        if value:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.now(UTC)
 
     async def publish(
         self,
@@ -210,3 +224,140 @@ class ThreadsAdapter(PlatformAdapter):
                 },
             )
             return resp.status_code == 200
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        comments: list[Comment] = []
+        url = f"{THREADS_API}/{platform_post_id}/replies"
+        params: dict[str, Any] = {
+            "fields": "id,text,username,timestamp,reply_to_id",
+            "access_token": credentials["access_token"],
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while url:
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    break
+
+                payload = resp.json()
+                for item in payload.get("data", []):
+                    created_at = self._parse_timestamp(item.get("timestamp"))
+                    if since and created_at <= since:
+                        continue
+                    comments.append(
+                        Comment(
+                            platform_comment_id=item.get("id", ""),
+                            author_id=item.get("username", ""),
+                            author_name=item.get("username", ""),
+                            text=item.get("text", ""),
+                            created_at=created_at,
+                            parent_id=item.get("reply_to_id"),
+                            raw=item,
+                        )
+                    )
+
+                paging = payload.get("paging", {})
+                url = paging.get("next", "")
+                params = {}
+
+        return comments
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{THREADS_API}/{credentials['threads_user_id']}/threads",
+                params={
+                    "media_type": "TEXT",
+                    "text": text,
+                    "reply_to_id": comment_id,
+                    "access_token": credentials["access_token"],
+                },
+            )
+            if resp.status_code != 200:
+                return ReplyResult(success=False, error=resp.text)
+
+            payload = resp.json()
+            return ReplyResult(
+                success=True,
+                platform_comment_id=payload.get("id"),
+            )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        results: list[AnalyticsData] = []
+        token = credentials["access_token"]
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if platform_post_id:
+                resp = await client.get(
+                    f"{THREADS_API}/{platform_post_id}/insights",
+                    params={
+                        "metric": "views,likes,replies,reposts,quotes",
+                        "access_token": token,
+                    },
+                )
+                if resp.status_code != 200:
+                    return results
+
+                metrics: dict[str, int] = {}
+                for entry in resp.json().get("data", []):
+                    name = entry.get("name", "")
+                    value = entry.get("values", [{}])[0].get("value", 0)
+                    metrics[name] = int(value) if isinstance(value, (int, float)) else 0
+
+                views = metrics.get("views", 0)
+                likes = metrics.get("likes", 0)
+                comments = metrics.get("replies", 0)
+                shares = metrics.get("reposts", 0) + metrics.get("quotes", 0)
+                denominator = views if views > 0 else 1
+                results.append(
+                    AnalyticsData(
+                        platform=self.platform_name,
+                        platform_post_id=platform_post_id,
+                        views=views,
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        impressions=views,
+                        engagement_rate=round(
+                            (likes + comments + shares) / denominator * 100,
+                            2,
+                        ),
+                        raw=metrics,
+                    )
+                )
+                return results
+
+            resp = await client.get(
+                f"{THREADS_API}/me",
+                params={
+                    "fields": "id,username,followers_count",
+                    "access_token": token,
+                },
+            )
+            if resp.status_code != 200:
+                return results
+
+            payload = resp.json()
+            results.append(
+                AnalyticsData(
+                    platform=self.platform_name,
+                    followers=int(payload.get("followers_count", 0)),
+                    raw=payload,
+                )
+            )
+        return results

@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 X_API_V2 = "https://api.x.com/2"
 MEDIA_UPLOAD_INIT = f"{X_API_V2}/media/upload/initialize"
@@ -19,6 +27,12 @@ _MAX_POST_TEXT_LENGTH = 280
 
 class XTwitterAdapter(PlatformAdapter):
     platform_name = "x_twitter"
+
+    @staticmethod
+    def _parse_created_at(value: str | None) -> datetime:
+        if value:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.now(UTC)
 
     async def publish(
         self,
@@ -188,3 +202,153 @@ class XTwitterAdapter(PlatformAdapter):
                 headers={"Authorization": f"Bearer {credentials['access_token']}"},
             )
             return resp.status_code == 200
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        comments: list[Comment] = []
+        next_token: str | None = None
+        headers = {"Authorization": f"Bearer {credentials['access_token']}"}
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while True:
+                params: dict[str, Any] = {
+                    "query": f"conversation_id:{platform_post_id} -is:retweet",
+                    "max_results": 100,
+                    "tweet.fields": "author_id,created_at,conversation_id,in_reply_to_user_id",
+                    "expansions": "author_id",
+                    "user.fields": "name,username",
+                }
+                if next_token:
+                    params["next_token"] = next_token
+
+                resp = await client.get(
+                    f"{X_API_V2}/tweets/search/recent",
+                    headers=headers,
+                    params=params,
+                )
+                if resp.status_code != 200:
+                    break
+
+                payload = resp.json()
+                users = {
+                    user.get("id", ""): user
+                    for user in payload.get("includes", {}).get("users", [])
+                }
+                for item in payload.get("data", []):
+                    created_at = self._parse_created_at(item.get("created_at"))
+                    if since and created_at <= since:
+                        continue
+                    author = users.get(item.get("author_id", ""), {})
+                    comments.append(
+                        Comment(
+                            platform_comment_id=item.get("id", ""),
+                            author_id=item.get("author_id", ""),
+                            author_name=author.get("name")
+                            or author.get("username", ""),
+                            text=item.get("text", ""),
+                            created_at=created_at,
+                            raw=item,
+                        )
+                    )
+
+                next_token = payload.get("meta", {}).get("next_token")
+                if not next_token:
+                    break
+
+        return comments
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{X_API_V2}/tweets",
+                headers={
+                    "Authorization": f"Bearer {credentials['access_token']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "text": text,
+                    "reply": {"in_reply_to_tweet_id": comment_id},
+                },
+            )
+            if resp.status_code != 201:
+                return ReplyResult(success=False, error=resp.text)
+
+            data = resp.json().get("data", {})
+            return ReplyResult(
+                success=True,
+                platform_comment_id=data.get("id"),
+            )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        headers = {"Authorization": f"Bearer {credentials['access_token']}"}
+        results: list[AnalyticsData] = []
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if platform_post_id:
+                resp = await client.get(
+                    f"{X_API_V2}/tweets/{platform_post_id}",
+                    headers=headers,
+                    params={"tweet.fields": "public_metrics"},
+                )
+                if resp.status_code != 200:
+                    return results
+
+                data = resp.json().get("data", {})
+                metrics = data.get("public_metrics", {})
+                views = int(metrics.get("impression_count", 0))
+                likes = int(metrics.get("like_count", 0))
+                comments = int(metrics.get("reply_count", 0))
+                shares = int(metrics.get("retweet_count", 0)) + int(
+                    metrics.get("quote_count", 0)
+                )
+                denominator = views if views > 0 else 1
+                results.append(
+                    AnalyticsData(
+                        platform=self.platform_name,
+                        platform_post_id=data.get("id"),
+                        views=views,
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        impressions=views,
+                        engagement_rate=round(
+                            (likes + comments + shares) / denominator * 100,
+                            2,
+                        ),
+                        raw=metrics,
+                    )
+                )
+                return results
+
+            resp = await client.get(
+                f"{X_API_V2}/users/me",
+                headers=headers,
+                params={"user.fields": "public_metrics"},
+            )
+            if resp.status_code != 200:
+                return results
+
+            data = resp.json().get("data", {})
+            metrics = data.get("public_metrics", {})
+            results.append(
+                AnalyticsData(
+                    platform=self.platform_name,
+                    followers=int(metrics.get("followers_count", 0)),
+                    raw=metrics,
+                )
+            )
+        return results

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
+import pytest
 import respx
 from httpx import ASGITransport, AsyncClient
 
@@ -201,6 +202,206 @@ async def test_instagram_reply_comment() -> None:
     assert result.platform_comment_id == "reply_ic1"
 
 
+@respx.mock
+async def test_x_twitter_get_comments() -> None:
+    from app.adapters.x_twitter import XTwitterAdapter
+
+    respx.get("https://api.x.com/2/tweets/search/recent").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "x_reply_1",
+                        "author_id": "user_1",
+                        "text": "Interesting thread",
+                        "created_at": "2026-04-07T12:00:00Z",
+                    },
+                ],
+                "includes": {
+                    "users": [{"id": "user_1", "name": "Drew", "username": "drew"}],
+                },
+                "meta": {},
+            },
+        ),
+    )
+
+    adapter = XTwitterAdapter()
+    comments = await adapter.get_comments("tweet_1", {"access_token": "tok"})
+    assert len(comments) == 1
+    assert comments[0].author_name == "Drew"
+    assert comments[0].text == "Interesting thread"
+
+
+@respx.mock
+async def test_x_twitter_reply_comment() -> None:
+    from app.adapters.x_twitter import XTwitterAdapter
+
+    respx.post("https://api.x.com/2/tweets").mock(
+        return_value=httpx.Response(201, json={"data": {"id": "reply_x_1"}}),
+    )
+
+    adapter = XTwitterAdapter()
+    result = await adapter.reply_comment(
+        "tweet_1", "x_reply_1", "Thanks for replying", {"access_token": "tok"},
+    )
+    assert result.success is True
+    assert result.platform_comment_id == "reply_x_1"
+
+
+@respx.mock
+async def test_linkedin_get_comments() -> None:
+    from app.adapters.linkedin import LinkedInAdapter
+
+    respx.get(
+        "https://api.linkedin.com/rest/socialActions/urn:li:share:1/comments"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "elements": [
+                    {
+                        "id": "urn:li:comment:1",
+                        "actor": {"urn": "urn:li:person:1", "name": "Casey"},
+                        "message": {"text": "Solid post"},
+                        "created": {"time": 1775563200000},
+                    },
+                ],
+                "paging": {"total": 1},
+            },
+        ),
+    )
+
+    adapter = LinkedInAdapter()
+    comments = await adapter.get_comments(
+        "urn:li:share:1",
+        {"access_token": "tok", "author_urn": "urn:li:person:me"},
+    )
+    assert len(comments) == 1
+    assert comments[0].author_name == "Casey"
+    assert comments[0].text == "Solid post"
+
+
+@respx.mock
+async def test_linkedin_reply_comment() -> None:
+    from app.adapters.linkedin import LinkedInAdapter
+
+    respx.post(
+        "https://api.linkedin.com/rest/socialActions/urn:li:comment:1/comments"
+    ).mock(
+        return_value=httpx.Response(201, json={"id": "urn:li:comment:reply-1"}),
+    )
+
+    adapter = LinkedInAdapter()
+    result = await adapter.reply_comment(
+        "urn:li:share:1",
+        "urn:li:comment:1",
+        "Thanks for the feedback",
+        {"access_token": "tok", "author_urn": "urn:li:person:me"},
+    )
+    assert result.success is True
+    assert result.platform_comment_id == "urn:li:comment:reply-1"
+
+
+@respx.mock
+async def test_facebook_get_comments() -> None:
+    from app.adapters.facebook import FacebookAdapter
+
+    respx.get("https://graph.facebook.com/v19.0/fb_post_1/comments").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "fb_c1",
+                        "from": {"id": "fb_user_1", "name": "Morgan"},
+                        "message": "Helpful post",
+                        "created_time": "2026-04-07T12:00:00+00:00",
+                    },
+                ],
+            },
+        ),
+    )
+
+    adapter = FacebookAdapter()
+    comments = await adapter.get_comments(
+        "fb_post_1",
+        {"page_access_token": "tok", "page_id": "page_1"},
+    )
+    assert len(comments) == 1
+    assert comments[0].author_name == "Morgan"
+    assert comments[0].text == "Helpful post"
+
+
+@respx.mock
+async def test_facebook_reply_comment() -> None:
+    from app.adapters.facebook import FacebookAdapter
+
+    respx.post("https://graph.facebook.com/v19.0/fb_c1/comments").mock(
+        return_value=httpx.Response(200, json={"id": "fb_reply_1"}),
+    )
+
+    adapter = FacebookAdapter()
+    result = await adapter.reply_comment(
+        "fb_post_1",
+        "fb_c1",
+        "Thanks for reading",
+        {"page_access_token": "tok", "page_id": "page_1"},
+    )
+    assert result.success is True
+    assert result.platform_comment_id == "fb_reply_1"
+
+
+@respx.mock
+async def test_threads_get_comments() -> None:
+    from app.adapters.threads import ThreadsAdapter
+
+    respx.get("https://graph.threads.net/v1.0/thread_1/replies").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "thr_reply_1",
+                        "username": "zoe",
+                        "text": "Nice thread",
+                        "timestamp": "2026-04-07T12:00:00Z",
+                        "reply_to_id": "thread_1",
+                    },
+                ],
+            },
+        ),
+    )
+
+    adapter = ThreadsAdapter()
+    comments = await adapter.get_comments(
+        "thread_1",
+        {"access_token": "tok", "threads_user_id": "user_1"},
+    )
+    assert len(comments) == 1
+    assert comments[0].author_name == "zoe"
+    assert comments[0].parent_id == "thread_1"
+
+
+@respx.mock
+async def test_threads_reply_comment() -> None:
+    from app.adapters.threads import ThreadsAdapter
+
+    respx.post("https://graph.threads.net/v1.0/user_1/threads").mock(
+        return_value=httpx.Response(200, json={"id": "thr_reply_publish_1"}),
+    )
+
+    adapter = ThreadsAdapter()
+    result = await adapter.reply_comment(
+        "thread_1",
+        "thr_reply_1",
+        "Appreciate it",
+        {"access_token": "tok", "threads_user_id": "user_1"},
+    )
+    assert result.success is True
+    assert result.platform_comment_id == "thr_reply_publish_1"
+
+
 # ---------------------------------------------------------------------------
 # Service tests
 # ---------------------------------------------------------------------------
@@ -336,6 +537,148 @@ async def test_comment_service_auto_reply(monkeypatch) -> None:
     # Verify DB was updated
     updated = fake_supabase.tables["comments"][0]
     assert updated["reply_status"] == "replied"
+
+
+@pytest.mark.parametrize(
+    ("platform", "module_name", "class_name", "credentials"),
+    [
+        ("x_twitter", "x_twitter", "XTwitterAdapter", {"access_token": "tok"}),
+        (
+            "linkedin",
+            "linkedin",
+            "LinkedInAdapter",
+            {"access_token": "tok", "author_urn": "urn:li:person:me"},
+        ),
+        (
+            "facebook",
+            "facebook",
+            "FacebookAdapter",
+            {"page_access_token": "tok", "page_id": "page_1"},
+        ),
+        (
+            "threads",
+            "threads",
+            "ThreadsAdapter",
+            {"access_token": "tok", "threads_user_id": "user_1"},
+        ),
+    ],
+)
+async def test_comment_service_collect_comments_expanded_platforms(
+    monkeypatch,
+    platform: str,
+    module_name: str,
+    class_name: str,
+    credentials: dict[str, str],
+) -> None:
+    from app.services.comment_service import CommentService
+
+    fake_supabase = FakeSupabase()
+    monkeypatch.setattr("app.services.comment_service.get_supabase", lambda: fake_supabase)
+    monkeypatch.setattr(
+        "app.services.comment_service.get_settings",
+        lambda: type("S", (), {"anthropic_api_key": None})(),
+    )
+
+    module = __import__(f"app.adapters.{module_name}", fromlist=[class_name])
+    adapter_cls = getattr(module, class_name)
+
+    async def fake_get_comments(self, post_id, creds, since=None):
+        return [
+            Comment(
+                platform_comment_id=f"{platform}_c1",
+                author_id="a1",
+                author_name=f"{platform} user",
+                text="Hello from expanded platform",
+                created_at=datetime.now(UTC),
+            )
+        ]
+
+    monkeypatch.setattr(adapter_cls, "get_comments", fake_get_comments)
+
+    service = CommentService()
+    stored = await service.collect_comments(
+        user_id="u1",
+        platform=platform,
+        platform_post_id="post_1",
+        credentials=credentials,
+    )
+    assert len(stored) == 1
+    assert stored[0]["platform"] == platform
+
+
+@pytest.mark.parametrize(
+    ("platform", "module_name", "class_name", "credentials"),
+    [
+        ("x_twitter", "x_twitter", "XTwitterAdapter", {"access_token": "tok"}),
+        (
+            "linkedin",
+            "linkedin",
+            "LinkedInAdapter",
+            {"access_token": "tok", "author_urn": "urn:li:person:me"},
+        ),
+        (
+            "facebook",
+            "facebook",
+            "FacebookAdapter",
+            {"page_access_token": "tok", "page_id": "page_1"},
+        ),
+        (
+            "threads",
+            "threads",
+            "ThreadsAdapter",
+            {"access_token": "tok", "threads_user_id": "user_1"},
+        ),
+    ],
+)
+async def test_comment_service_auto_reply_expanded_platforms(
+    monkeypatch,
+    platform: str,
+    module_name: str,
+    class_name: str,
+    credentials: dict[str, str],
+) -> None:
+    from app.services.comment_service import CommentService
+
+    fake_supabase = FakeSupabase()
+    user_id = str(uuid4())
+    comment_id = str(uuid4())
+    fake_supabase.insert_row(
+        "comments",
+        {
+            "id": comment_id,
+            "user_id": user_id,
+            "platform": platform,
+            "platform_post_id": "post_1",
+            "platform_comment_id": "comment_1",
+            "author_id": "a1",
+            "author_name": "Alice",
+            "text": "How does this work?",
+            "reply_status": "pending",
+        },
+    )
+
+    monkeypatch.setattr("app.services.comment_service.get_supabase", lambda: fake_supabase)
+    monkeypatch.setattr(
+        "app.services.comment_service.get_settings",
+        lambda: type("S", (), {"anthropic_api_key": None})(),
+    )
+
+    module = __import__(f"app.adapters.{module_name}", fromlist=[class_name])
+    adapter_cls = getattr(module, class_name)
+
+    async def fake_reply_comment(self, post_id, cid, text, creds):
+        return ReplyResult(success=True, platform_comment_id=f"{platform}_reply_1")
+
+    monkeypatch.setattr(adapter_cls, "reply_comment", fake_reply_comment)
+
+    service = CommentService()
+    result = await service.auto_reply(
+        comment_id=comment_id,
+        user_id=user_id,
+        credentials=credentials,
+    )
+    assert result["success"] is True
+    assert result["platform_reply_id"] == f"{platform}_reply_1"
 
 
 async def test_comment_service_list_and_get(monkeypatch) -> None:

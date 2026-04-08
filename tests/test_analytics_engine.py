@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import fakeredis.aioredis
 import httpx
+import pytest
 import respx
 from httpx import ASGITransport, AsyncClient
 
@@ -253,6 +254,191 @@ async def test_instagram_get_analytics_account() -> None:
     assert results[0].followers == 5000
 
 
+@respx.mock
+async def test_x_twitter_get_analytics_post() -> None:
+    from app.adapters.x_twitter import XTwitterAdapter
+
+    respx.get("https://api.x.com/2/tweets/tweet1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": {
+                    "id": "tweet1",
+                    "public_metrics": {
+                        "impression_count": 8000,
+                        "like_count": 400,
+                        "reply_count": 30,
+                        "retweet_count": 20,
+                        "quote_count": 10,
+                    },
+                }
+            },
+        ),
+    )
+
+    adapter = XTwitterAdapter()
+    results = await adapter.get_analytics("tweet1", {"access_token": "test"})
+    assert len(results) == 1
+    assert results[0].views == 8000
+    assert results[0].shares == 30
+    assert results[0].platform == "x_twitter"
+
+
+@respx.mock
+async def test_x_twitter_get_analytics_account() -> None:
+    from app.adapters.x_twitter import XTwitterAdapter
+
+    respx.get("https://api.x.com/2/users/me").mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": {"public_metrics": {"followers_count": 3200}}},
+        ),
+    )
+
+    adapter = XTwitterAdapter()
+    results = await adapter.get_analytics(None, {"access_token": "test"})
+    assert len(results) == 1
+    assert results[0].followers == 3200
+
+
+@respx.mock
+async def test_linkedin_get_analytics_post() -> None:
+    from app.adapters.linkedin import LinkedInAdapter
+
+    respx.get("https://api.linkedin.com/rest/socialActions/urn:li:share:1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "likesSummary": {"totalLikes": 50},
+                "commentsSummary": {"totalFirstLevelComments": 7},
+                "sharesSummary": {"count": 4},
+                "impressionSummary": {"count": 1500},
+            },
+        ),
+    )
+
+    adapter = LinkedInAdapter()
+    results = await adapter.get_analytics(
+        "urn:li:share:1",
+        {"access_token": "test", "author_urn": "urn:li:person:me"},
+    )
+    assert len(results) == 1
+    assert results[0].views == 1500
+    assert results[0].likes == 50
+    assert results[0].platform == "linkedin"
+
+
+@respx.mock
+async def test_linkedin_get_analytics_account() -> None:
+    from app.adapters.linkedin import LinkedInAdapter
+
+    respx.get("https://api.linkedin.com/v2/networkSizes/urn:li:person:me").mock(
+        return_value=httpx.Response(200, json={"firstDegreeSize": 1200}),
+    )
+
+    adapter = LinkedInAdapter()
+    results = await adapter.get_analytics(
+        None,
+        {"access_token": "test", "author_urn": "urn:li:person:me"},
+    )
+    assert len(results) == 1
+    assert results[0].followers == 1200
+
+
+@respx.mock
+async def test_facebook_get_analytics_post() -> None:
+    from app.adapters.facebook import FacebookAdapter
+
+    respx.get("https://graph.facebook.com/v19.0/post1/insights").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"name": "post_impressions", "values": [{"value": 5000}]},
+                    {"name": "post_impressions_unique", "values": [{"value": 4200}]},
+                    {"name": "post_reactions_like_total", "values": [{"value": 180}]},
+                    {"name": "post_comments", "values": [{"value": 25}]},
+                    {"name": "post_shares", "values": [{"value": 12}]},
+                ]
+            },
+        ),
+    )
+
+    adapter = FacebookAdapter()
+    results = await adapter.get_analytics(
+        "post1",
+        {"page_access_token": "test", "page_id": "page_1"},
+    )
+    assert len(results) == 1
+    assert results[0].impressions == 5000
+    assert results[0].reach == 4200
+    assert results[0].platform == "facebook"
+
+
+@respx.mock
+async def test_facebook_get_analytics_account() -> None:
+    from app.adapters.facebook import FacebookAdapter
+
+    respx.get("https://graph.facebook.com/v19.0/page_1").mock(
+        return_value=httpx.Response(200, json={"followers_count": 9100}),
+    )
+
+    adapter = FacebookAdapter()
+    results = await adapter.get_analytics(
+        None,
+        {"page_access_token": "test", "page_id": "page_1"},
+    )
+    assert len(results) == 1
+    assert results[0].followers == 9100
+
+
+@respx.mock
+async def test_threads_get_analytics_post() -> None:
+    from app.adapters.threads import ThreadsAdapter
+
+    respx.get("https://graph.threads.net/v1.0/thread1/insights").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"name": "views", "values": [{"value": 7000}]},
+                    {"name": "likes", "values": [{"value": 300}]},
+                    {"name": "replies", "values": [{"value": 45}]},
+                    {"name": "reposts", "values": [{"value": 15}]},
+                    {"name": "quotes", "values": [{"value": 5}]},
+                ]
+            },
+        ),
+    )
+
+    adapter = ThreadsAdapter()
+    results = await adapter.get_analytics(
+        "thread1",
+        {"access_token": "test", "threads_user_id": "user_1"},
+    )
+    assert len(results) == 1
+    assert results[0].views == 7000
+    assert results[0].shares == 20
+    assert results[0].platform == "threads"
+
+
+@respx.mock
+async def test_threads_get_analytics_account() -> None:
+    from app.adapters.threads import ThreadsAdapter
+
+    respx.get("https://graph.threads.net/v1.0/me").mock(
+        return_value=httpx.Response(200, json={"followers_count": 6400}),
+    )
+
+    adapter = ThreadsAdapter()
+    results = await adapter.get_analytics(
+        None,
+        {"access_token": "test", "threads_user_id": "user_1"},
+    )
+    assert len(results) == 1
+    assert results[0].followers == 6400
+
+
 # ---------------------------------------------------------------------------
 # Service tests
 # ---------------------------------------------------------------------------
@@ -289,6 +475,70 @@ async def test_collect_snapshot(monkeypatch) -> None:
     assert len(result) == 1
     assert result[0]["views"] == 500
     assert len(fake_supabase.tables["analytics_snapshots"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("platform", "module_name", "class_name", "credentials"),
+    [
+        ("x_twitter", "x_twitter", "XTwitterAdapter", {"access_token": "test"}),
+        (
+            "linkedin",
+            "linkedin",
+            "LinkedInAdapter",
+            {"access_token": "test", "author_urn": "urn:li:person:me"},
+        ),
+        (
+            "facebook",
+            "facebook",
+            "FacebookAdapter",
+            {"page_access_token": "test", "page_id": "page_1"},
+        ),
+        (
+            "threads",
+            "threads",
+            "ThreadsAdapter",
+            {"access_token": "test", "threads_user_id": "user_1"},
+        ),
+    ],
+)
+async def test_collect_snapshot_expanded_platforms(
+    monkeypatch,
+    platform: str,
+    module_name: str,
+    class_name: str,
+    credentials: dict[str, str],
+) -> None:
+    from app.services.analytics_service import AnalyticsService
+
+    fake_supabase = FakeSupabase()
+    monkeypatch.setattr("app.services.analytics_service.get_supabase", lambda: fake_supabase)
+
+    module = __import__(f"app.adapters.{module_name}", fromlist=[class_name])
+    adapter_cls = getattr(module, class_name)
+
+    async def fake_get_analytics(self, post_id, creds):
+        return [
+            AnalyticsData(
+                platform=platform,
+                platform_post_id="post_1",
+                views=250,
+                likes=25,
+                comments=5,
+                shares=2,
+            )
+        ]
+
+    monkeypatch.setattr(adapter_cls, "get_analytics", fake_get_analytics)
+
+    service = AnalyticsService()
+    result = await service.collect_snapshot(
+        "u1",
+        platform,
+        credentials,
+        "post_1",
+    )
+    assert len(result) == 1
+    assert result[0]["platform"] == platform
 
 
 async def test_get_dashboard(monkeypatch) -> None:

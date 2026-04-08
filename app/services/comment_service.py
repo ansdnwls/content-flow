@@ -17,8 +17,12 @@ ADAPTER_MAP: dict[str, type[PlatformAdapter]] = {}
 def _get_adapter_map() -> dict[str, type[PlatformAdapter]]:
     """Lazy-load adapter map to avoid circular imports."""
     if not ADAPTER_MAP:
+        from app.adapters.facebook import FacebookAdapter
         from app.adapters.instagram import InstagramAdapter
+        from app.adapters.linkedin import LinkedInAdapter
+        from app.adapters.threads import ThreadsAdapter
         from app.adapters.tiktok import TikTokAdapter
+        from app.adapters.x_twitter import XTwitterAdapter
         from app.adapters.youtube import YouTubeAdapter
 
         ADAPTER_MAP.update(
@@ -26,6 +30,10 @@ def _get_adapter_map() -> dict[str, type[PlatformAdapter]]:
                 "youtube": YouTubeAdapter,
                 "tiktok": TikTokAdapter,
                 "instagram": InstagramAdapter,
+                "x_twitter": XTwitterAdapter,
+                "linkedin": LinkedInAdapter,
+                "facebook": FacebookAdapter,
+                "threads": ThreadsAdapter,
             }
         )
     return ADAPTER_MAP

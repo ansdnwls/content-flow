@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from app.adapters.base import MediaSpec, PlatformAdapter, PublishResult
+from app.adapters.base import (
+    AnalyticsData,
+    Comment,
+    MediaSpec,
+    PlatformAdapter,
+    PublishResult,
+    ReplyResult,
+)
 
 LINKEDIN_API = "https://api.linkedin.com"
 LINKEDIN_VERSION = "202510"
@@ -14,6 +22,24 @@ LINKEDIN_VERSION = "202510"
 
 class LinkedInAdapter(PlatformAdapter):
     platform_name = "linkedin"
+
+    @staticmethod
+    def _parse_timestamp(value: int | str | None) -> datetime:
+        if isinstance(value, int):
+            return datetime.fromtimestamp(value / 1000, tz=UTC)
+        if isinstance(value, str) and value:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.now(UTC)
+
+    @staticmethod
+    def _to_int(value: Any) -> int:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, dict):
+            nested = value.get("value")
+            if isinstance(nested, (int, float)):
+                return int(nested)
+        return 0
 
     @staticmethod
     def _is_valid_author_urn(author: str) -> bool:
@@ -271,3 +297,164 @@ class LinkedInAdapter(PlatformAdapter):
                 headers={"Authorization": f"Bearer {credentials['access_token']}"},
             )
             return resp.status_code == 200
+
+    async def get_comments(
+        self,
+        platform_post_id: str,
+        credentials: dict[str, str],
+        since: datetime | None = None,
+    ) -> list[Comment]:
+        comments: list[Comment] = []
+        start = 0
+        count = 100
+        headers = self._build_headers(
+            credentials["access_token"],
+            include_json_content_type=False,
+        )
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while True:
+                resp = await client.get(
+                    f"{LINKEDIN_API}/rest/socialActions/{platform_post_id}/comments",
+                    headers=headers,
+                    params={"start": start, "count": count},
+                )
+                if resp.status_code != 200:
+                    break
+
+                payload = resp.json()
+                elements = payload.get("elements", [])
+                for item in elements:
+                    created_at = self._parse_timestamp(
+                        item.get("created", {}).get("time")
+                        or item.get("createdAt")
+                    )
+                    if since and created_at <= since:
+                        continue
+                    actor = item.get("actor", {})
+                    comments.append(
+                        Comment(
+                            platform_comment_id=item.get("id", ""),
+                            author_id=actor.get("id", "")
+                            or actor.get("urn", ""),
+                            author_name=actor.get("name", "")
+                            or actor.get("localizedName", ""),
+                            text=item.get("message", {}).get("text", "")
+                            or item.get("text", ""),
+                            created_at=created_at,
+                            raw=item,
+                        )
+                    )
+
+                paging = payload.get("paging", {})
+                total = int(paging.get("total", len(elements)))
+                start += len(elements)
+                if not elements or start >= total:
+                    break
+
+        return comments
+
+    async def reply_comment(
+        self,
+        platform_post_id: str,
+        comment_id: str,
+        text: str,
+        credentials: dict[str, str],
+    ) -> ReplyResult:
+        author = credentials.get("author_urn")
+        if not author:
+            return ReplyResult(success=False, error="Missing author URN")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{LINKEDIN_API}/rest/socialActions/{comment_id}/comments",
+                headers=self._build_headers(credentials["access_token"]),
+                json={
+                    "actor": author,
+                    "message": {"text": text},
+                    "object": platform_post_id,
+                },
+            )
+            if resp.status_code not in (200, 201):
+                return ReplyResult(success=False, error=resp.text)
+
+            payload = resp.json() if resp.text else {}
+            return ReplyResult(
+                success=True,
+                platform_comment_id=payload.get("id")
+                or resp.headers.get("x-restli-id"),
+            )
+
+    async def get_analytics(
+        self,
+        platform_post_id: str | None,
+        credentials: dict[str, str],
+    ) -> list[AnalyticsData]:
+        headers = self._build_headers(
+            credentials["access_token"],
+            include_json_content_type=False,
+        )
+        results: list[AnalyticsData] = []
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if platform_post_id:
+                resp = await client.get(
+                    f"{LINKEDIN_API}/rest/socialActions/{platform_post_id}",
+                    headers=headers,
+                )
+                if resp.status_code != 200:
+                    return results
+
+                payload = resp.json()
+                likes = self._to_int(payload.get("likesSummary", {}).get("totalLikes"))
+                comments = self._to_int(
+                    payload.get("commentsSummary", {}).get("totalFirstLevelComments")
+                )
+                shares = self._to_int(payload.get("sharesSummary", {}).get("count"))
+                impressions = self._to_int(
+                    payload.get("impressionSummary", {}).get("count")
+                    or payload.get("totalShareStatistics", {}).get("impressionCount")
+                )
+                denominator = impressions if impressions > 0 else 1
+                results.append(
+                    AnalyticsData(
+                        platform=self.platform_name,
+                        platform_post_id=platform_post_id,
+                        views=impressions,
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        impressions=impressions,
+                        engagement_rate=round(
+                            (likes + comments + shares) / denominator * 100,
+                            2,
+                        ),
+                        raw=payload,
+                    )
+                )
+                return results
+
+            author = credentials.get("author_urn")
+            if not author:
+                return results
+
+            resp = await client.get(
+                f"{LINKEDIN_API}/v2/networkSizes/{author}",
+                headers={"Authorization": f"Bearer {credentials['access_token']}"},
+                params={"edgeType": "CompanyFollowedByMember"},
+            )
+            if resp.status_code != 200:
+                return results
+
+            payload = resp.json()
+            results.append(
+                AnalyticsData(
+                    platform=self.platform_name,
+                    followers=self._to_int(
+                        payload.get("firstDegreeSize")
+                        or payload.get("followerCounts")
+                    ),
+                    raw=payload,
+                )
+            )
+        return results
