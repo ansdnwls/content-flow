@@ -8,6 +8,7 @@ from typing import Any
 from app.core.billing import get_usage_summary
 from app.core.db import get_supabase
 from app.services.email_service import render_template, send_template
+from app.services.notification_service import create_notification
 
 USAGE_ALERT_THRESHOLDS = (50, 80, 100)
 USAGE_ALERT_TEMPLATE = "usage_alert"
@@ -152,5 +153,16 @@ async def send_usage_alerts_if_needed(
             continue
         if result.get("status") == "sent":
             sent.append(threshold)
+            if threshold == 80:
+                try:
+                    create_notification(
+                        user_id=user_id,
+                        type="quota_warning",
+                        title="Usage at 80%",
+                        body="You've used 80% of your monthly quota.",
+                        link_url="/usage",
+                    )
+                except Exception:
+                    pass
 
     return sent

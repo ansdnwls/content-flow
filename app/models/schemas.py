@@ -412,6 +412,28 @@ CREATE_EMAIL_LOGS_TABLE_SQL = dedent(
 ).strip()
 
 
+CREATE_NOTIFICATIONS_TABLE_SQL = dedent(
+    """
+    create table if not exists public.notifications (
+        id uuid primary key default gen_random_uuid(),
+        user_id uuid not null references public.users(id) on delete cascade,
+        type text not null,
+        title text not null,
+        body text not null,
+        link_url text,
+        read_at timestamptz,
+        created_at timestamptz not null default timezone('utc', now())
+    );
+
+    create index if not exists idx_notifications_user_unread
+        on public.notifications(user_id, created_at desc)
+        where read_at is null;
+    create index if not exists idx_notifications_user
+        on public.notifications(user_id, created_at desc);
+    """
+).strip()
+
+
 CREATE_NOTIFICATION_PREFERENCES_TABLE_SQL = dedent(
     """
     create table if not exists public.notification_preferences (
@@ -740,6 +762,10 @@ CREATE_UPDATED_AT_TRIGGERS_SQL = dedent(
     create trigger trg_deletion_requests_updated_at before update on public.deletion_requests
     for each row execute function public.set_updated_at();
 
+    drop trigger if exists trg_notifications_updated_at on public.notifications;
+    create trigger trg_notifications_updated_at before update on public.notifications
+    for each row execute function public.set_updated_at();
+
     drop trigger if exists trg_ytboost_subscriptions_updated_at on public.ytboost_subscriptions;
     create trigger trg_ytboost_subscriptions_updated_at
     before update on public.ytboost_subscriptions
@@ -776,6 +802,7 @@ SCHEMA_SQL_STATEMENTS = [
     CREATE_VIDEO_TEMPLATES_TABLE_SQL,
     CREATE_TRENDING_SNAPSHOTS_TABLE_SQL,
     CREATE_EMAIL_LOGS_TABLE_SQL,
+    CREATE_NOTIFICATIONS_TABLE_SQL,
     CREATE_NOTIFICATION_PREFERENCES_TABLE_SQL,
     CREATE_PAYMENTS_TABLE_SQL,
     CREATE_SUBSCRIPTION_EVENTS_TABLE_SQL,

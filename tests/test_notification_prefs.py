@@ -30,7 +30,7 @@ def _setup(monkeypatch):
 
     monkeypatch.setattr("app.api.deps.get_supabase", fake_get_supabase)
     monkeypatch.setattr(
-        "app.api.v1.notifications.get_supabase", fake_get_supabase,
+        "app.api.v1.notification_prefs.get_supabase", fake_get_supabase,
     )
     return fake_sb, user_id, issued.raw_key
 

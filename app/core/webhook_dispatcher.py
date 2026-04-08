@@ -18,6 +18,7 @@ from app.core.db import get_supabase
 from app.core.logging_config import get_logger
 from app.core.metrics import record_webhook_delivery
 from app.core.webhook_idempotency import IdempotencyStore
+from app.services.notification_service import create_notification as _create_notif
 
 RETRY_BACKOFF_SECONDS: list[int] = [60, 300, 1800, 7200, 43200]
 MAX_DELIVERY_ATTEMPTS = len(RETRY_BACKOFF_SECONDS) + 1
@@ -343,10 +344,19 @@ async def dispatch_event(owner_id: str, event: str, payload: dict[str, Any]) -> 
                 next_retry_at=next_retry_at,
                 delivered_at=None,
             )
-            _update_webhook_failure_count(
-                webhook["id"],
-                int(webhook.get("failure_count") or 0) + 1,
-            )
+            new_count = int(webhook.get("failure_count") or 0) + 1
+            _update_webhook_failure_count(webhook["id"], new_count)
+            if new_count == 1:
+                try:
+                    _create_notif(
+                        user_id=owner_id,
+                        type="webhook_failed",
+                        title="Webhook delivery failed",
+                        body=f"Delivery to {webhook['target_url']} failed: {error}",
+                        link_url="/settings/webhooks",
+                    )
+                except Exception:
+                    pass
             await _enqueue_retry(delivery["id"], next_retry_at)
             record_webhook_delivery("pending")
 

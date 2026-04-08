@@ -44,6 +44,10 @@ class FakeQuery:
         self.filters.append(("gte", field, value))
         return self
 
+    def is_(self, field: str, value: str) -> FakeQuery:
+        self.filters.append(("is", field, value))
+        return self
+
     def insert(self, payload: dict | list[dict]) -> FakeQuery:
         self.insert_payload = payload
         return self
@@ -165,6 +169,11 @@ class FakeQuery:
                     for row in filtered
                     if row.get(field) is not None and row.get(field) >= value
                 ]
+            elif operator == "is":
+                if value == "null":
+                    filtered = [row for row in filtered if row.get(field) is None]
+                else:
+                    filtered = [row for row in filtered if row.get(field) is not None]
         return filtered
 
 
@@ -191,6 +200,7 @@ class FakeSupabase:
             "payments": [],
             "subscription_events": [],
             "email_logs": [],
+            "notifications": [],
             "notification_preferences": [],
             "consents": [],
             "dpa_signatures": [],

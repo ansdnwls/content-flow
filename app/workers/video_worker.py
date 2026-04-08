@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.core.db import get_supabase
 from app.core.errors import NotFoundError
 from app.core.webhook_dispatcher import dispatch_event
+from app.services.notification_service import create_notification
 from app.services.video_templates import get_template
 from app.workers.celery_app import celery_app
 
@@ -215,6 +216,16 @@ async def run_video_generation(video_id: str, owner_id: str) -> dict:
                 "provider_job_id": generated["provider_job_id"],
             },
         )
+        try:
+            create_notification(
+                user_id=owner_id,
+                type="video_ready",
+                title="Video ready",
+                body="Your video has been generated and is ready to view.",
+                link_url=f"/videos/{video_id}",
+            )
+        except Exception:
+            pass
     except Exception as exc:
         sb.table("video_jobs").update({"status": "failed"}).eq("id", video_id).execute()
         await dispatch_event(

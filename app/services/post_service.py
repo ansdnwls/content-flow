@@ -31,6 +31,7 @@ from app.core.db import get_supabase
 from app.core.metrics import record_platform_post
 from app.core.webhook_dispatcher import dispatch_event
 from app.oauth.token_store import get_valid_credentials
+from app.services.notification_service import create_notification
 
 ADAPTERS: dict[str, PlatformAdapter] = {
     "youtube": YouTubeAdapter(),
@@ -214,5 +215,16 @@ async def publish_post(post_id: str, owner_id: str) -> dict[str, PublishResult]:
             "post.published",
             {"post_id": post_id, "platforms": list(results.keys())},
         )
+        try:
+            platforms_str = ", ".join(results.keys())
+            create_notification(
+                user_id=owner_id,
+                type="post_published",
+                title="Post published",
+                body=f"Your post was published to {platforms_str}.",
+                link_url=f"/posts/{post_id}",
+            )
+        except Exception:
+            pass
 
     return results

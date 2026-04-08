@@ -14,6 +14,7 @@ from app.api.v1 import (
     email_verify,
     legal,
     members,
+    notification_prefs,
     notifications,
     onboarding,
     posts,
@@ -52,6 +53,7 @@ api_router.include_router(members.router)
 api_router.include_router(domains.router)
 api_router.include_router(onboarding.router)
 api_router.include_router(email_verify.router)
+api_router.include_router(notification_prefs.router)
 api_router.include_router(notifications.router)
 api_router.include_router(privacy.router)
 api_router.include_router(consent.router)
