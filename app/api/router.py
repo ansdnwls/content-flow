@@ -20,6 +20,7 @@ from app.api.v1 import (
     predict,
     privacy,
     schedules,
+    shopsync,
     trending,
     usage,
     users,
@@ -56,3 +57,4 @@ api_router.include_router(consent.router)
 api_router.include_router(legal.router)
 api_router.include_router(users.router)
 api_router.include_router(ytboost.router)
+api_router.include_router(shopsync.router)
