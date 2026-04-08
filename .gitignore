@@ -25,3 +25,5 @@ node_modules/
 .next/
 .vercel/
 celerybeat-schedule
+docs/openapi.json
+docs-site/openapi.json
