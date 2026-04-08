@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -27,6 +29,15 @@ class UpdateUserRequest(BaseModel):
     full_name: str | None = Field(default=None, max_length=100)
     language: str | None = Field(default=None, max_length=5)
     timezone: str | None = Field(default=None, max_length=50)
+
+
+def _validate_timezone(value: str) -> str:
+    """Return a valid IANA timezone or raise a 422 for unsupported values."""
+    try:
+        ZoneInfo(value)
+    except ZoneInfoNotFoundError as exc:
+        raise HTTPException(status_code=422, detail="Unsupported timezone") from exc
+    return value
 
 
 @router.get("/me", response_model=UserProfile)
@@ -62,7 +73,7 @@ async def update_me(
             )
         updates["language"] = body.language
     if body.timezone is not None:
-        updates["timezone"] = body.timezone
+        updates["timezone"] = _validate_timezone(body.timezone)
 
     if not updates:
         return await get_me(user)
