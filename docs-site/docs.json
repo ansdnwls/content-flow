@@ -12,11 +12,10 @@
     "dark": "/images/contentflow-wordmark-light.svg"
   },
   "favicon": "/images/contentflow-favicon.svg",
-  "openapi": "./openapi.json",
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Get Started",
+        "tab": "Get Started",
         "pages": [
           "introduction",
           "quickstart",
@@ -24,7 +23,7 @@
         ]
       },
       {
-        "group": "Guides",
+        "tab": "Guides",
         "pages": [
           "guides/first-post",
           "guides/webhooks",
@@ -33,7 +32,7 @@
         ]
       },
       {
-        "group": "SDKs",
+        "tab": "SDKs",
         "pages": [
           "sdks/python",
           "sdks/javascript",
@@ -41,7 +40,7 @@
         ]
       },
       {
-        "group": "Platforms",
+        "tab": "Platforms",
         "pages": [
           "platforms/youtube",
           "platforms/tiktok",
@@ -67,13 +66,22 @@
         ]
       },
       {
-        "group": "API Reference",
-        "pages": [
-          "api-reference/overview"
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "openapi": "./openapi.json"
+          }
         ]
       },
       {
-        "group": "Updates",
+        "tab": "Updates",
         "pages": [
           "changelog"
         ]

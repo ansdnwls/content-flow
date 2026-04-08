@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { marketingPlatforms } from "@/lib/marketing";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const alt = "ContentFlow Open Graph Image";
 export const size = {
   width: 1200,
