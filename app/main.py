@@ -15,6 +15,7 @@ from app.core.middleware import ErrorTrackingMiddleware, LoggingMiddleware
 from app.core.monitoring import setup_monitoring
 from app.core.request_id import RequestIdMiddleware
 from app.core.request_validator import RequestValidatorMiddleware
+from app.core.response_cache import ResponseCacheInvalidationMiddleware
 from app.core.security_middleware import SecurityHeadersMiddleware
 
 
@@ -150,6 +151,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestValidatorMiddleware)
 app.add_middleware(ErrorTrackingMiddleware)
 app.add_middleware(LoggingMiddleware)
+app.add_middleware(ResponseCacheInvalidationMiddleware)
 app.add_middleware(RequestIdMiddleware)
 
 app.include_router(api_router)

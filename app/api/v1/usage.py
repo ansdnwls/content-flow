@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -45,7 +45,11 @@ class UsageHistoryResponse(BaseModel):
     description="Returns the current month's usage summary including limits for your plan.",
 )
 @cache(ttl=60, key_prefix="usage-summary")
-async def usage_summary(user: CurrentUser) -> UsageSummaryResponse:
+async def usage_summary(
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+) -> UsageSummaryResponse:
     summary = await get_usage_summary(user.id, user.plan, user.workspace_id)
     return UsageSummaryResponse(**summary)
 

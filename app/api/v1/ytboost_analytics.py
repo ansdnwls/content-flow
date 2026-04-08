@@ -5,11 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
 from app.api.error_responses import COMMON_RESPONSES
+from app.core.cache import cache
 from app.core.db import get_supabase
 
 router = APIRouter(
@@ -101,7 +102,12 @@ def _month_start() -> str:
     response_model=OverviewResponse,
     summary="YtBoost Monthly Overview",
 )
-async def get_overview(user: CurrentUser) -> OverviewResponse:
+@cache(ttl=300, key_prefix="ytboost-analytics-overview")
+async def get_overview(
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+) -> OverviewResponse:
     """Aggregate this-month stats: shorts extracted/published, comments replied."""
     sb = get_supabase()
     month_start = _month_start()
@@ -170,7 +176,12 @@ async def get_overview(user: CurrentUser) -> OverviewResponse:
     response_model=ShortsPerformanceResponse,
     summary="Shorts Platform Performance",
 )
-async def get_shorts_performance(user: CurrentUser) -> ShortsPerformanceResponse:
+@cache(ttl=300, key_prefix="ytboost-analytics-shorts-performance")
+async def get_shorts_performance(
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+) -> ShortsPerformanceResponse:
     """Per-platform distribution stats for extracted shorts."""
     sb = get_supabase()
 
@@ -226,7 +237,12 @@ async def get_shorts_performance(user: CurrentUser) -> ShortsPerformanceResponse
     response_model=CommentStatsResponse,
     summary="Comment Reply Statistics",
 )
-async def get_comment_stats(user: CurrentUser) -> CommentStatsResponse:
+@cache(ttl=300, key_prefix="ytboost-analytics-comment-stats")
+async def get_comment_stats(
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+) -> CommentStatsResponse:
     """Auto vs manual reply ratio, average response time."""
     sb = get_supabase()
 
@@ -287,7 +303,12 @@ async def get_comment_stats(user: CurrentUser) -> CommentStatsResponse:
     response_model=ChannelHealthResponse,
     summary="Channel Health Status",
 )
-async def get_channel_health(user: CurrentUser) -> ChannelHealthResponse:
+@cache(ttl=300, key_prefix="ytboost-analytics-channel-health")
+async def get_channel_health(
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+) -> ChannelHealthResponse:
     """Health status for each connected YouTube channel."""
     sb = get_supabase()
 

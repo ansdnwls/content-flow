@@ -138,13 +138,17 @@ async def test_rate_limit_headers(monkeypatch) -> None:
     redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 
     user = AuthenticatedUser(id="u1", email="t@t.com", plan="free", is_test_key=False)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(redis=redis)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(redis=redis)),
+        method="GET",
+        url=SimpleNamespace(path="/api/v1/usage"),
+    )
     response = Response()
 
     await enforce_rate_limit(request, response, user)
 
-    assert response.headers.get("X-RateLimit-Limit") == "10"
-    assert response.headers.get("X-RateLimit-Remaining") == "9"
+    assert response.headers.get("X-RateLimit-Limit") == "100"
+    assert response.headers.get("X-RateLimit-Remaining") == "99"
     assert response.headers.get("X-RateLimit-Reset") is not None
 
 
@@ -161,14 +165,18 @@ async def test_rate_limit_blocks_over_limit(monkeypatch) -> None:
     redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 
     user = AuthenticatedUser(id="u2", email="t@t.com", plan="free", is_test_key=False)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(redis=redis)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(redis=redis)),
+        method="GET",
+        url=SimpleNamespace(path="/api/v1/usage"),
+    )
 
-    # Exhaust the limit (10 requests for free plan)
-    for _ in range(10):
+    # Exhaust the limit (100 requests for free plan)
+    for _ in range(100):
         response = Response()
         await enforce_rate_limit(request, response, user)
 
-    # 11th request should raise
+    # 101st request should raise
     response = Response()
     with pytest.raises(RateLimitError):
         await enforce_rate_limit(request, response, user)
@@ -183,7 +191,11 @@ async def test_rate_limit_no_redis_passes(monkeypatch) -> None:
     from app.core.rate_limit_dep import enforce_rate_limit
 
     user = AuthenticatedUser(id="u3", email="t@t.com", plan="free", is_test_key=False)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace()),
+        method="GET",
+        url=SimpleNamespace(path="/api/v1/usage"),
+    )
     response = Response()
 
     # Should not raise — fail-open when no Redis
@@ -280,6 +292,7 @@ async def test_usage_summary_endpoint_is_cached(monkeypatch) -> None:
     monkeypatch.setattr("app.api.deps.get_supabase", lambda: fake_supabase)
     monkeypatch.setattr("app.api.v1.usage.get_usage_summary", fake_usage_summary)
     monkeypatch.setattr("app.core.cache.get_redis", fake_cache_redis)
+    monkeypatch.setattr(app.state, "redis", redis, raising=False)
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

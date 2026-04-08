@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -115,6 +115,8 @@ async def _count_by_status(table_name: str, owner_id: str) -> dict[str, int]:
 )
 @cache(ttl=300, key_prefix="analytics-dashboard")
 async def get_analytics_dashboard(
+    request: Request,
+    response: Response,
     user: CurrentUser,
     period: str = Query("30d", pattern=r"^(1d|7d|30d|90d)$"),
 ) -> DashboardResponse:

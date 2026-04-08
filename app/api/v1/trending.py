@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -118,6 +118,8 @@ class GenerateFromTrendResponse(BaseModel):
 )
 @cache(ttl=1800, key_prefix="trending-list")
 async def get_trends(
+    request: Request,
+    response: Response,
     user: CurrentUser,
     platform: str | None = Query(
         default=None,

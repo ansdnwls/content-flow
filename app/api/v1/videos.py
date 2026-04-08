@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -14,6 +14,7 @@ from app.api.error_responses import COMMON_RESPONSES, NOT_FOUND_ERROR
 from app.core.cache import cache, invalidate_user_cache
 from app.core.db import get_supabase
 from app.core.errors import NotFoundError
+from app.services.usage_alerts import send_usage_alerts_if_needed
 from app.services.video_templates import (
     BUILTIN_TEMPLATES,
     db_row_to_template,
@@ -181,6 +182,12 @@ async def create_video(req: CreateVideoRequest, user: CurrentUser) -> VideoRespo
     video = await _create_video_job(user, req)
     await _enqueue_video_generation(video["id"], user.id)
     await invalidate_user_cache(user.id)
+    await send_usage_alerts_if_needed(
+        user_id=user.id,
+        email=user.email,
+        plan=user.plan,
+        workspace_id=user.workspace_id,
+    )
     return _to_response(await _get_video(video["id"], user.id, user.workspace_id))
 
 
@@ -268,7 +275,11 @@ def _custom_row_to_response(row: dict) -> TemplateResponse:
     description="Returns all available video templates (built-in + user custom).",
 )
 @cache(ttl=3600, key_prefix="video-templates")
-async def list_templates(user: CurrentUser) -> TemplateListResponse:
+async def list_templates(
+    request: Request,
+    response: Response,
+    user: CurrentUser,
+) -> TemplateListResponse:
     builtin = list_builtin_templates()
     builtin_responses = [TemplateResponse(**t) for t in builtin]
 

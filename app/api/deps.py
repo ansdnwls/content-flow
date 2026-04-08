@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import Header, Request, Security
+from fastapi import Header, Request, Response, Security
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -59,6 +59,7 @@ async def _touch_last_used(sb, redis, api_key_id: str) -> None:
 
 async def get_current_user(
     request: Request,
+    response: Response = None,
     api_key: str | None = Security(_api_key_header),
     x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
 ) -> AuthenticatedUser:
@@ -142,6 +143,10 @@ async def get_current_user(
         request.state.api_key_prefix = prefix
         request.state.workspace_id = authenticated.workspace_id
         request.state.authenticated_user = authenticated
+        if response is not None:
+            from app.core.rate_limit_dep import enforce_rate_limit
+
+            await enforce_rate_limit(request, response, authenticated)
         return authenticated
 
     raise AuthenticationError("Invalid API key")

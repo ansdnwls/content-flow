@@ -2,23 +2,38 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import Request, Response
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from app.api.deps import AuthenticatedUser
-from app.core.billing import RATE_WINDOW_SECONDS, get_rate_limit
 from app.core.errors import RateLimitError
-from app.core.rate_limiter import RateLimitResult, SlidingWindowRateLimiter
+from app.core.rate_limiter_v2 import (
+    SlidingWindowRateLimiterV2,
+    get_rate_limit_policies,
+)
+
+if TYPE_CHECKING:
+    from app.api.deps import AuthenticatedUser
 
 
-def _set_rate_limit_headers(response: Response, result: RateLimitResult) -> None:
+def _set_rate_limit_headers(response: Response, result) -> dict[str, str]:
     """Attach rate limit headers to the response."""
-    response.headers["X-RateLimit-Limit"] = str(result.limit)
-    response.headers["X-RateLimit-Remaining"] = str(result.remaining)
-    response.headers["X-RateLimit-Reset"] = str(result.reset_after_seconds)
+    headers = {
+        "X-RateLimit-Limit": str(result.limit),
+        "X-RateLimit-Remaining": str(result.remaining),
+        "X-RateLimit-Reset": str(result.reset_after_seconds),
+    }
+    for key, value in headers.items():
+        response.headers[key] = value
+    if result.warning:
+        headers["X-RateLimit-Warning"] = result.warning
+        response.headers["X-RateLimit-Warning"] = result.warning
     if not result.allowed:
+        headers["Retry-After"] = str(result.retry_after_seconds)
         response.headers["Retry-After"] = str(result.retry_after_seconds)
+    return headers
 
 
 async def enforce_rate_limit(
@@ -26,32 +41,39 @@ async def enforce_rate_limit(
     response: Response,
     user: AuthenticatedUser,
 ) -> None:
-    """Check rate limit for the authenticated user and set response headers.
-
-    Requires ``request.app.state.redis`` to be set. Falls through
-    silently when Redis is unavailable (fail-open).
-    """
+    """Check rate limits for the authenticated user and set response headers."""
     redis: Redis | None = getattr(request.app.state, "redis", None)
     if redis is None:
         return
 
-    plan = user.plan
-    limit = get_rate_limit(plan)
-    limiter = SlidingWindowRateLimiter(redis)
+    limiter = SlidingWindowRateLimiterV2(redis)
+    policies = get_rate_limit_policies(
+        user,
+        method=request.method,
+        path=request.url.path,
+    )
 
     try:
-        result = await limiter.check(
-            identifier=f"user:{user.id}",
-            limit=limit,
-            window_seconds=RATE_WINDOW_SECONDS,
-        )
+        results = []
+        for policy in policies:
+            result = await limiter.check(
+                identifier=f"user:{user.id}",
+                limit=policy.limit,
+                window_seconds=policy.window_seconds,
+                scope=policy.scope,
+            )
+            results.append(result)
+            if not result.allowed:
+                headers = _set_rate_limit_headers(response, result)
+                raise RateLimitError(
+                    (
+                        f"Rate limit exceeded for {result.scope}. "
+                        f"Try again in {result.retry_after_seconds}s."
+                    ),
+                    headers=headers,
+                )
     except (RedisConnectionError, OSError):
         return
 
-    _set_rate_limit_headers(response, result)
-
-    if not result.allowed:
-        raise RateLimitError(
-            f"Rate limit exceeded. Try again in {result.retry_after_seconds}s. "
-            f"Plan '{plan}' allows {limit} requests per minute."
-        )
+    display = min(results, key=lambda item: item.limit)
+    _set_rate_limit_headers(response, display)

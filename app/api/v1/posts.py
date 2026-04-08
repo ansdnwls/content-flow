@@ -19,6 +19,7 @@ from app.core.db import get_supabase
 from app.core.errors import BillingLimitError, NotFoundError
 from app.services.post_service import bulk_enqueue
 from app.services.throttle import compute_throttle_offsets
+from app.services.usage_alerts import send_usage_alerts_if_needed
 from app.workers.post_worker import publish_post_task
 
 router = APIRouter(prefix="/posts", tags=["Posts"], responses=COMMON_RESPONSES)
@@ -516,6 +517,12 @@ async def create_post(
         return _build_dry_run_preview(user.id, req, workspace_id=user.workspace_id)
     post = await _call_create_internal_post(user, req, skip_enqueue=False)
     await invalidate_user_cache(user.id)
+    await send_usage_alerts_if_needed(
+        user_id=user.id,
+        email=user.email,
+        plan=user.plan,
+        workspace_id=user.workspace_id,
+    )
     return _to_response(post)
 
 

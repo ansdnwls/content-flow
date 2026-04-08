@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
+from app.core.cache import cache
 from app.core.db import get_supabase
 from app.core.i18n import SUPPORTED_LOCALES
 
@@ -40,9 +41,7 @@ def _validate_timezone(value: str) -> str:
     return value
 
 
-@router.get("/me", response_model=UserProfile)
-async def get_me(user: AuthenticatedUser = _current_user):
-    """Get the current user's profile."""
+def _load_profile(user: AuthenticatedUser) -> UserProfile:
     sb = get_supabase()
     result = (
         sb.table("users")
@@ -54,6 +53,17 @@ async def get_me(user: AuthenticatedUser = _current_user):
     if not result.data:
         return UserProfile(id=user.id, email=user.email, plan=user.plan)
     return UserProfile(**result.data)
+
+
+@router.get("/me", response_model=UserProfile)
+@cache(ttl=60, key_prefix="users-me")
+async def get_me(
+    request: Request,
+    response: Response,
+    user: AuthenticatedUser = _current_user,
+):
+    """Get the current user's profile."""
+    return _load_profile(user)
 
 
 @router.patch("/me", response_model=UserProfile)
@@ -76,7 +86,7 @@ async def update_me(
         updates["timezone"] = _validate_timezone(body.timezone)
 
     if not updates:
-        return await get_me(user)
+        return _load_profile(user)
 
     sb = get_supabase()
     result = (

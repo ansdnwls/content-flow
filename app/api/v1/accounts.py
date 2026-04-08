@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -188,7 +188,10 @@ async def oauth_callback(
     ),
 )
 @cache(ttl=3600, key_prefix="accounts-list")
-async def list_connected_accounts(user: CurrentUser) -> AccountsListResponse:
+async def list_connected_accounts(
+    request: Request,
+    user: CurrentUser,
+) -> AccountsListResponse:
     accounts = list_accounts(user.id, user.workspace_id)
     return AccountsListResponse(
         data=[AccountResponse(**row) for row in accounts],
