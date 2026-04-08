@@ -11,8 +11,9 @@ from app.api.webhooks.yt_factory import router as yt_factory_webhook_router
 from app.config import get_settings
 from app.core.audit import reset_audit_writer
 from app.core.cache import reset_redis_client as reset_cache_redis_client
-from app.core.middleware import ErrorTrackingMiddleware, LoggingMiddleware, RequestIdMiddleware
+from app.core.middleware import ErrorTrackingMiddleware, LoggingMiddleware
 from app.core.monitoring import setup_monitoring
+from app.core.request_id import RequestIdMiddleware
 from app.core.request_validator import RequestValidatorMiddleware
 from app.core.security_middleware import SecurityHeadersMiddleware
 
@@ -147,8 +148,8 @@ app = FastAPI(
 setup_monitoring(app)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestValidatorMiddleware)
-app.add_middleware(LoggingMiddleware)
 app.add_middleware(ErrorTrackingMiddleware)
+app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestIdMiddleware)
 
 app.include_router(api_router)

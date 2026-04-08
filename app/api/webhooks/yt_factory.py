@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
+from app.core.monitoring import get_logger
 from app.core.webhook_signature import SignatureError, verify_yt_factory_signature
 from app.services.yt_factory_integration import YtFactoryIntegration
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/webhooks", tags=["yt-factory Webhooks"])
 
@@ -60,7 +59,12 @@ async def yt_factory_webhook(
             },
         )
     except Exception:
-        logger.exception("yt-factory webhook processing failed")
+        logger.exception(
+            "yt_factory_webhook_failed",
+            user_id=payload.user_id,
+            youtube_video_id=payload.youtube_video_id,
+            youtube_channel_id=payload.youtube_channel_id,
+        )
         raise HTTPException(status_code=500, detail="Internal processing error") from None
 
     return {"status": "accepted", **result}
