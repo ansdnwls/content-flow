@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -17,6 +17,7 @@ from app.core.billing import check_post_limit_bulk
 from app.core.cache import invalidate_user_cache
 from app.core.db import get_supabase
 from app.core.errors import BillingLimitError, NotFoundError
+from app.core.feature_flags import FeatureFlagStore
 from app.services.post_service import bulk_enqueue
 from app.services.throttle import compute_throttle_offsets
 from app.services.usage_alerts import send_usage_alerts_if_needed
@@ -256,6 +257,7 @@ async def _list_posts(
     page: int = 1,
     limit: int = 20,
     status_filter: str | None = None,
+    use_new_sorting: bool = False,
 ) -> tuple[list[dict], int]:
     """List posts with pagination. Returns (posts, total_count)."""
     sb = get_supabase()
@@ -272,7 +274,7 @@ async def _list_posts(
 
     offset = (page - 1) * limit
     result = (
-        query.order("created_at", desc=True)
+        query.order("updated_at" if use_new_sorting else "created_at", desc=True)
         .range(offset, offset + limit - 1)
         .execute()
     )
@@ -533,17 +535,26 @@ async def create_post(
     description="Returns paginated publishing jobs for the authenticated owner.",
 )
 async def list_posts(
+    request: Request,
     user: CurrentUser,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     status: str | None = Query(None),
 ) -> PostListResponse:
+    redis = getattr(getattr(request.app, "state", None), "redis", None)
+    feature_flags = FeatureFlagStore(redis=redis)
+    use_new_sorting = await feature_flags.is_enabled(
+        "new_sorting",
+        user_id=user.id,
+        context={"plan": user.plan},
+    )
     posts, total = await _list_posts(
         user.id,
         user.workspace_id,
         page=page,
         limit=limit,
         status_filter=status,
+        use_new_sorting=use_new_sorting,
     )
     return PostListResponse(
         data=[_to_response(post) for post in posts],

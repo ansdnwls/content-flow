@@ -1,4 +1,4 @@
-"""Admin Panel API — system management and monitoring endpoints."""
+"""Admin Panel API for system management and monitoring endpoints."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from app.api.error_responses import COMMON_RESPONSES
 from app.core.admin_auth import get_admin_user
 from app.core.db import get_supabase
 from app.workers.celery_app import celery_app
+
+from . import feature_flags
 
 router = APIRouter(
     prefix="/admin",
@@ -29,11 +31,6 @@ router = APIRouter(
 )
 
 AdminUser = Annotated[dict, Depends(get_admin_user)]
-
-
-# ---------------------------------------------------------------------------
-# Response models
-# ---------------------------------------------------------------------------
 
 
 class UserSummary(BaseModel):
@@ -107,16 +104,7 @@ class HealthCheckResponse(BaseModel):
     status: str
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/users",
-    response_model=UserListResponse,
-    summary="List All Users",
-)
+@router.get("/users", response_model=UserListResponse, summary="List All Users")
 async def list_users(
     admin: AdminUser,
     plan: str | None = Query(default=None),
@@ -137,11 +125,7 @@ async def list_users(
     )
 
 
-@router.get(
-    "/users/{user_id}",
-    response_model=UserDetail,
-    summary="Get User Detail",
-)
+@router.get("/users/{user_id}", response_model=UserDetail, summary="Get User Detail")
 async def get_user_detail(user_id: str, admin: AdminUser) -> UserDetail:
     sb = get_supabase()
     user_result = (
@@ -185,24 +169,14 @@ async def get_user_detail(user_id: str, admin: AdminUser) -> UserDetail:
     )
 
 
-@router.post(
-    "/users/{user_id}/plan",
-    response_model=PlanChangeResponse,
-    summary="Change User Plan",
-)
+@router.post("/users/{user_id}/plan", response_model=PlanChangeResponse, summary="Change User Plan")
 async def change_user_plan(
     user_id: str,
     req: PlanChangeRequest,
     admin: AdminUser,
 ) -> PlanChangeResponse:
     sb = get_supabase()
-    user_result = (
-        sb.table("users")
-        .select("id, plan")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
-    )
+    user_result = sb.table("users").select("id, plan").eq("id", user_id).maybe_single().execute()
     user = user_result.data
     if not user:
         from app.core.errors import NotFoundError
@@ -219,10 +193,7 @@ async def change_user_plan(
     )
 
 
-@router.post(
-    "/users/{user_id}/suspend",
-    summary="Suspend User Account",
-)
+@router.post("/users/{user_id}/suspend", summary="Suspend User Account")
 async def suspend_user(
     user_id: str,
     req: SuspendRequest,
@@ -245,29 +216,16 @@ async def suspend_user(
     sb.table("users").update({"is_active": False}).eq("id", user_id).execute()
     sb.table("api_keys").update({"is_active": False}).eq("user_id", user_id).execute()
 
-    return {
-        "user_id": user_id,
-        "status": "suspended",
-        "reason": req.reason,
-    }
+    return {"user_id": user_id, "status": "suspended", "reason": req.reason}
 
 
-@router.get(
-    "/stats",
-    response_model=SystemStats,
-    summary="System Statistics",
-)
+@router.get("/stats", response_model=SystemStats, summary="System Statistics")
 async def system_stats(admin: AdminUser) -> SystemStats:
     sb = get_supabase()
 
     total_users = sb.table("users").select("id", count="exact").execute().count or 0
     active_users = (
-        sb.table("users")
-        .select("id", count="exact")
-        .eq("is_active", True)
-        .execute()
-        .count
-        or 0
+        sb.table("users").select("id", count="exact").eq("is_active", True).execute().count or 0
     )
     total_posts = sb.table("posts").select("id", count="exact").execute().count or 0
     total_videos = sb.table("video_jobs").select("id", count="exact").execute().count or 0
@@ -277,8 +235,8 @@ async def system_stats(admin: AdminUser) -> SystemStats:
     plan_rows = sb.table("users").select("plan").execute().data
     plans: dict[str, int] = {}
     for row in plan_rows:
-        p = row.get("plan", "free")
-        plans[p] = plans.get(p, 0) + 1
+        plan_name = row.get("plan", "free")
+        plans[plan_name] = plans.get(plan_name, 0) + 1
 
     return SystemStats(
         total_users=total_users,
@@ -291,11 +249,7 @@ async def system_stats(admin: AdminUser) -> SystemStats:
     )
 
 
-@router.get(
-    "/jobs",
-    response_model=JobsResponse,
-    summary="Celery Job Status",
-)
+@router.get("/jobs", response_model=JobsResponse, summary="Celery Job Status")
 async def celery_jobs(admin: AdminUser) -> JobsResponse:
     inspector = celery_app.control.inspect(timeout=2.0)
 
@@ -306,13 +260,19 @@ async def celery_jobs(admin: AdminUser) -> JobsResponse:
     total_active = 0
     total_scheduled = 0
 
-    all_worker_names = set(list(active.keys()) + list(scheduled.keys()))
+    all_worker_names = set(active) | set(scheduled)
     for name in sorted(all_worker_names):
-        a = len(active.get(name, []))
-        s = len(scheduled.get(name, []))
-        total_active += a
-        total_scheduled += s
-        workers.append(CeleryJob(worker=name, active_tasks=a, scheduled_tasks=s))
+        active_count = len(active.get(name, []))
+        scheduled_count = len(scheduled.get(name, []))
+        total_active += active_count
+        total_scheduled += scheduled_count
+        workers.append(
+            CeleryJob(
+                worker=name,
+                active_tasks=active_count,
+                scheduled_tasks=scheduled_count,
+            ),
+        )
 
     return JobsResponse(
         workers=workers,
@@ -321,11 +281,7 @@ async def celery_jobs(admin: AdminUser) -> JobsResponse:
     )
 
 
-@router.get(
-    "/health",
-    response_model=HealthCheckResponse,
-    summary="Full System Health Check",
-)
+@router.get("/health", response_model=HealthCheckResponse, summary="Full System Health Check")
 async def admin_health_check(admin: AdminUser) -> HealthCheckResponse:
     from app.api.health import check_celery_ready, check_redis_ready, check_supabase_ready
 
@@ -355,11 +311,6 @@ async def admin_health_check(admin: AdminUser) -> HealthCheckResponse:
         celery=celery_ok,
         status="healthy" if all_ok else "degraded",
     )
-
-
-# ---------------------------------------------------------------------------
-# Compliance Dashboard (GDPR)
-# ---------------------------------------------------------------------------
 
 
 class ComplianceDashboard(BaseModel):
@@ -402,7 +353,6 @@ class ComplianceDataRequestsResponse(BaseModel):
     summary="Compliance Dashboard",
 )
 async def compliance_dashboard(admin: AdminUser) -> ComplianceDashboard:
-    """Overview of GDPR compliance metrics."""
     sb = get_supabase()
 
     total_users = sb.table("users").select("id", count="exact").execute().count or 0
@@ -430,14 +380,8 @@ async def compliance_dashboard(admin: AdminUser) -> ComplianceDashboard:
         .count
         or 0
     )
-    breaches = (
-        sb.table("data_breaches").select("id", count="exact").execute().count or 0
-    )
-    dpa_count = (
-        sb.table("dpa_signatures").select("id", count="exact").execute().count or 0
-    )
-
-    # Count export audit entries (approximate via audit_logs)
+    breaches = sb.table("data_breaches").select("id", count="exact").execute().count or 0
+    dpa_count = sb.table("dpa_signatures").select("id", count="exact").execute().count or 0
     export_logs = (
         sb.table("audit_logs")
         .select("id", count="exact")
@@ -464,7 +408,6 @@ async def compliance_dashboard(admin: AdminUser) -> ComplianceDashboard:
     summary="Pending Deletion Requests",
 )
 async def pending_deletions(admin: AdminUser) -> PendingDeletionsResponse:
-    """List all pending account deletion requests."""
     sb = get_supabase()
     result = (
         sb.table("deletion_requests")
@@ -473,9 +416,7 @@ async def pending_deletions(admin: AdminUser) -> PendingDeletionsResponse:
         .order("scheduled_for")
         .execute()
     )
-    return PendingDeletionsResponse(
-        pending=[PendingDeletion(**row) for row in result.data],
-    )
+    return PendingDeletionsResponse(pending=[PendingDeletion(**row) for row in result.data])
 
 
 @router.get(
@@ -487,14 +428,14 @@ async def compliance_data_requests(
     admin: AdminUser,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> ComplianceDataRequestsResponse:
-    """List recent GDPR-related user data requests from the audit trail."""
     sb = get_supabase()
     logs = sb.table("audit_logs").select(
         "id, user_id, action, resource, created_at, ip, metadata",
     ).execute().data
 
     privacy_actions = [
-        row for row in logs
+        row
+        for row in logs
         if isinstance(row.get("action"), str) and row["action"].startswith("privacy.")
     ]
     privacy_actions.sort(key=lambda row: row.get("created_at", ""), reverse=True)
@@ -502,3 +443,6 @@ async def compliance_data_requests(
     return ComplianceDataRequestsResponse(
         requests=[ComplianceDataRequest(**row) for row in privacy_actions[:limit]],
     )
+
+
+router.include_router(feature_flags.router)

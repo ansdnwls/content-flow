@@ -37,7 +37,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["app", "app.adapters", "app.api", "app.api.v1", "app.core", "app.middleware", "app.models", "app.oauth", "app.oauth.providers", "app.services", "app.workers"]
+packages = ["app", "app.adapters", "app.api", "app.api.v1", "app.api.v1.admin", "app.core", "app.middleware", "app.models", "app.oauth", "app.oauth.providers", "app.services", "app.workers"]
 
 [tool.ruff]
 target-version = "py311"
