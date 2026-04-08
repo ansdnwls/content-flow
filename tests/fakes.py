@@ -200,6 +200,7 @@ class FakeSupabase:
             "ytboost_shorts": [],
             "ytboost_channel_tones": [],
             "shopsync_products": [],
+            "shopsync_bulk_jobs": [],
         }
         self.query_counts: dict[str, int] = {}
 

@@ -34,6 +34,7 @@ celery_app.conf.update(
         "app.workers.webhook_retry_worker",
         "app.workers.trending_worker",
         "app.workers.scheduler",
+        "app.workers.shopsync_bulk_worker",
     ),
     beat_schedule={
         "schedule-due-posts-every-minute": {

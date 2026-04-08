@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
@@ -234,3 +234,95 @@ async def delete_product(product_id: str, user: CurrentUser) -> Response:
 
     sb.table("shopsync_products").delete().eq("id", product_id).execute()
     return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# POST /shopsync/products/bulk-import
+# ---------------------------------------------------------------------------
+
+_MAX_CSV_ROWS = 1000
+
+
+@router.post("/products/bulk-import", status_code=202)
+async def bulk_import_products(file: UploadFile, user: CurrentUser) -> dict:
+    """Upload a CSV file to bulk-import products via background worker."""
+    if file.content_type and file.content_type not in (
+        "text/csv",
+        "application/vnd.ms-excel",
+        "application/octet-stream",
+    ):
+        raise HTTPException(status_code=400, detail="File must be CSV")
+
+    raw_bytes = await file.read()
+    if not raw_bytes.strip():
+        raise HTTPException(status_code=400, detail="CSV file is empty")
+
+    csv_text = raw_bytes.decode("utf-8-sig", errors="replace")
+
+    # Quick row count check (header + data rows)
+    line_count = csv_text.strip().count("\n")
+    if line_count > _MAX_CSV_ROWS + 1:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Too many rows. Maximum is {_MAX_CSV_ROWS}",
+        )
+
+    # Quick column validation
+    first_line = csv_text.split("\n", 1)[0].lower()
+    required = {"name", "price", "category", "image_url"}
+    headers = {h.strip() for h in first_line.split(",")}
+    missing = required - headers
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required columns: {', '.join(sorted(missing))}",
+        )
+
+    job_id = str(uuid4())
+    sb = get_supabase()
+    sb.table("shopsync_bulk_jobs").insert(
+        {
+            "id": job_id,
+            "user_id": user.id,
+            "status": "pending",
+            "total_rows": line_count,
+            "succeeded": 0,
+            "failed": 0,
+            "results": [],
+            "error": None,
+        },
+    ).execute()
+
+    from app.workers.shopsync_bulk_worker import shopsync_bulk_import_task
+
+    shopsync_bulk_import_task.delay(job_id, csv_text, user.id)
+
+    return {
+        "job_id": job_id,
+        "total_rows": line_count,
+        "status_url": f"/api/v1/shopsync/products/bulk-import/{job_id}",
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /shopsync/products/bulk-import/{job_id}
+# ---------------------------------------------------------------------------
+
+
+@router.get("/products/bulk-import/{job_id}")
+async def get_bulk_import_status(job_id: str, user: CurrentUser) -> dict:
+    """Get bulk import job progress."""
+    sb = get_supabase()
+    row = (
+        sb.table("shopsync_bulk_jobs")
+        .select("*")
+        .eq("id", job_id)
+        .maybe_single()
+        .execute()
+        .data
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if row["user_id"] != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return row
