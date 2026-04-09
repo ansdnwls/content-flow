@@ -25,6 +25,7 @@ celery_app.conf.update(
         "app.workers.billing_worker",
         "app.workers.bomb_worker",
         "app.workers.comment_worker",
+        "app.workers.data_export_worker",
         "app.workers.post_worker",
         "app.workers.retention_worker",
         "app.workers.schedule_worker",

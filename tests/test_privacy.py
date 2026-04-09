@@ -14,7 +14,10 @@ from tests.fakes import FakeSupabase
 
 
 @pytest.fixture()
-def authed_client(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeSupabase, str, str]:
+def authed_client(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> tuple[FakeSupabase, str, str]:
     fake = FakeSupabase()
     for mod in (
         "app.api.deps",
@@ -28,6 +31,14 @@ def authed_client(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeSupabase, str, s
         "app.core.workspaces.resolve_workspace_id_for_user",
         lambda *a, **kw: None,
     )
+    monkeypatch.setattr("app.services.data_export_service.EXPORT_ROOT", tmp_path)
+
+    class FakeExportTask:
+        @staticmethod
+        def delay(*_args) -> None:
+            return None
+
+    monkeypatch.setattr("app.api.v1.privacy.generate_user_data_export_task", FakeExportTask)
 
     user_id = str(uuid4())
     fake.table("users").insert({

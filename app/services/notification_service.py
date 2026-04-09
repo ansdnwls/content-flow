@@ -9,6 +9,7 @@ from app.core.db import get_supabase
 from app.core.logging_config import get_logger
 
 NOTIFICATION_TYPES = frozenset({
+    "export_ready",
     "post_published",
     "video_ready",
     "payment_failed",

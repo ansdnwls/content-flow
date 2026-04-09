@@ -5,8 +5,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from app.api.deps import AuthenticatedUser, get_current_user
 from app.api.error_responses import COMMON_RESPONSES
@@ -14,6 +17,14 @@ from app.core.audit import record_audit
 from app.core.db import get_supabase
 from app.core.errors import NotFoundError
 from app.services.billing_service import cancel_subscription
+from app.services.data_export_service import (
+    create_export_request,
+    delete_export_artifacts,
+    get_export_status,
+    load_export_manifest,
+    validate_download_token,
+)
+from app.workers.data_export_worker import generate_user_data_export_task
 
 router = APIRouter(
     prefix="/privacy",
@@ -68,11 +79,17 @@ class ExportResponse(BaseModel):
     format: str
     requested_at: str
     expires_at: str
+    encrypted: bool = False
+    completed_at: str | None = None
+    download_url: str | None = None
+    status_url: str | None = None
     summary: dict[str, int] = Field(default_factory=dict)
 
 
 class ExportRequest(BaseModel):
     format: Literal["json", "zip"] = "json"
+    encrypt: bool = False
+    password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
 class DeletionResponse(BaseModel):
@@ -327,27 +344,125 @@ async def request_export(
     request: Request,
 ) -> ExportResponse:
     """Request a full data export. Returns status (async processing)."""
-    bundle = _build_export_bundle(user.id)
-    summary = _build_export_summary(bundle)
-    requested_at = _now_iso()
-    expires_at = (datetime.now(UTC) + timedelta(hours=EXPORT_LINK_TTL_HOURS)).isoformat()
-    export_id = f"exp_{user.id[:8]}_{int(datetime.now(UTC).timestamp())}"
+    if body.encrypt and not body.password:
+        raise HTTPException(status_code=400, detail="password is required when encrypt=true")
+    if body.password and not body.encrypt:
+        raise HTTPException(status_code=400, detail="encrypt must be true when password is set")
+
+    metadata = create_export_request(
+        user.id,
+        export_format=body.format,
+        encrypted=body.encrypt,
+        sb=get_supabase(),
+    )
+    generate_user_data_export_task.delay(
+        metadata["export_id"],
+        user.id,
+        body.format,
+        body.password,
+    )
 
     await record_audit(
         user_id=user.id,
         action="privacy.export_request",
         resource="privacy",
         ip=_client_ip(request),
-        metadata={"format": body.format, "summary": summary, "export_id": export_id},
+        metadata={
+            "format": body.format,
+            "summary": metadata["summary"],
+            "export_id": metadata["export_id"],
+            "encrypted": body.encrypt,
+        },
     )
     return ExportResponse(
         message="Data export request received. You will be notified when ready.",
         status="queued",
-        export_id=export_id,
+        export_id=metadata["export_id"],
         format=body.format,
-        requested_at=requested_at,
-        expires_at=expires_at,
-        summary=summary,
+        requested_at=metadata["requested_at"],
+        expires_at=metadata["expires_at"],
+        encrypted=body.encrypt,
+        status_url=f"{str(request.base_url).rstrip('/')}/api/v1/privacy/export/{metadata['export_id']}",
+        summary=metadata["summary"],
+    )
+
+
+@router.get(
+    "/export/{export_id}",
+    response_model=ExportResponse,
+    summary="Get data export status",
+)
+async def get_export_request_status(
+    export_id: str,
+    user: CurrentUser,
+    request: Request,
+) -> ExportResponse:
+    try:
+        status = get_export_status(
+            export_id,
+            user_id=user.id,
+            base_url=str(request.base_url).rstrip("/"),
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Export not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=410, detail=str(exc)) from exc
+
+    return ExportResponse(
+        export_id=status["export_id"],
+        message="Data export status retrieved.",
+        status=status["status"],
+        format=status["format"],
+        requested_at=status["requested_at"],
+        expires_at=status["expires_at"],
+        encrypted=status["encrypted"],
+        completed_at=status.get("completed_at"),
+        download_url=status.get("download_url"),
+        status_url=f"{str(request.base_url).rstrip('/')}/api/v1/privacy/export/{export_id}",
+        summary=status["summary"],
+    )
+
+
+@router.get(
+    "/export/{export_id}/download",
+    summary="Download completed data export",
+)
+async def download_export(
+    export_id: str,
+    token: str,
+    user: CurrentUser,
+) -> FileResponse:
+    manifest = load_export_manifest(export_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Export not found")
+    if manifest["user_id"] != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        validate_download_token(export_id, user.id, token)
+    except jwt.ExpiredSignatureError as exc:
+        delete_export_artifacts(export_id)
+        raise HTTPException(status_code=410, detail="Export link has expired") from exc
+    except jwt.InvalidTokenError as exc:
+        raise HTTPException(status_code=403, detail="Invalid export token") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+
+    file_path = manifest.get("file_path")
+    if manifest.get("status") != "ready" or not file_path:
+        raise HTTPException(status_code=409, detail="Export is not ready")
+
+    path = file_path
+    if not path:
+        raise HTTPException(status_code=404, detail="Export file not found")
+
+    return FileResponse(
+        path,
+        media_type="application/zip",
+        filename=f"{export_id}.zip",
+        background=BackgroundTask(delete_export_artifacts, export_id),
     )
 
 
