@@ -18,6 +18,7 @@ from app.core.auth import (
 )
 from app.core.db import get_supabase
 from app.core.errors import AuthenticationError
+from app.core.request_id import set_current_user_id
 from app.core.workspaces import resolve_workspace_id_for_user
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -143,6 +144,7 @@ async def get_current_user(
         request.state.api_key_prefix = prefix
         request.state.workspace_id = authenticated.workspace_id
         request.state.authenticated_user = authenticated
+        set_current_user_id(authenticated.id)
         if response is not None:
             from app.core.rate_limit_dep import enforce_rate_limit
 

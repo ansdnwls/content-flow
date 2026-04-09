@@ -17,6 +17,7 @@ from app.core.request_id import RequestIdMiddleware
 from app.core.request_validator import RequestValidatorMiddleware
 from app.core.response_cache import ResponseCacheInvalidationMiddleware
 from app.core.security_middleware import SecurityHeadersMiddleware
+from app.core.timing_middleware import TimingMiddleware
 
 
 @asynccontextmanager
@@ -147,12 +148,26 @@ app = FastAPI(
 )
 
 setup_monitoring(app)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestValidatorMiddleware)
-app.add_middleware(ErrorTrackingMiddleware)
-app.add_middleware(LoggingMiddleware)
-app.add_middleware(ResponseCacheInvalidationMiddleware)
-app.add_middleware(RequestIdMiddleware)
+
+
+def configure_http_middleware(fastapi_app: FastAPI) -> None:
+    """Install middleware in reverse registration order of the desired request flow.
+
+    FastAPI wraps the most recently added middleware on the outside. The intended
+    execution flow is RequestID -> Timing -> Auth -> RateLimit -> Cache -> Logging.
+    Auth and rate limiting run inside route dependencies after outer middleware.
+    """
+
+    fastapi_app.add_middleware(SecurityHeadersMiddleware)
+    fastapi_app.add_middleware(RequestValidatorMiddleware)
+    fastapi_app.add_middleware(ErrorTrackingMiddleware)
+    fastapi_app.add_middleware(LoggingMiddleware)
+    fastapi_app.add_middleware(ResponseCacheInvalidationMiddleware)
+    fastapi_app.add_middleware(TimingMiddleware)
+    fastapi_app.add_middleware(RequestIdMiddleware)
+
+
+configure_http_middleware(app)
 
 app.include_router(api_router)
 app.include_router(stripe_webhook_router)

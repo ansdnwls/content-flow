@@ -8,6 +8,7 @@ from uuid import uuid4
 from starlette.datastructures import Headers, MutableHeaders
 
 _request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
+_user_id_var: ContextVar[str | None] = ContextVar("user_id", default=None)
 
 
 def get_request_id() -> str | None:
@@ -25,6 +26,21 @@ def clear_request_id(token: Token) -> None:
     _request_id_var.reset(token)
 
 
+def get_current_user_id() -> str | None:
+    """Return the current authenticated user ID from context when available."""
+    return _user_id_var.get()
+
+
+def set_current_user_id(user_id: str | None) -> Token:
+    """Bind the current authenticated user ID to the async context."""
+    return _user_id_var.set(user_id)
+
+
+def clear_current_user_id(token: Token) -> None:
+    """Restore the previous user ID context."""
+    _user_id_var.reset(token)
+
+
 class RequestIdMiddleware:
     """Attach a request ID to request state, contextvars, and response headers."""
 
@@ -38,7 +54,8 @@ class RequestIdMiddleware:
 
         request_id = Headers(scope=scope).get("X-Request-ID") or str(uuid4())
         scope.setdefault("state", {})["request_id"] = request_id
-        token = set_request_id(request_id)
+        request_token = set_request_id(request_id)
+        user_token = set_current_user_id(None)
 
         async def send_with_request_id(message) -> None:
             if message["type"] == "http.response.start":
@@ -49,4 +66,5 @@ class RequestIdMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
-            clear_request_id(token)
+            clear_current_user_id(user_token)
+            clear_request_id(request_token)

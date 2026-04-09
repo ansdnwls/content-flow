@@ -9,7 +9,7 @@ from typing import TextIO
 import structlog
 
 from app.config import get_settings
-from app.core.request_id import get_request_id
+from app.core.request_id import get_current_user_id, get_request_id
 
 
 def _add_request_id(_logger, _method_name: str, event_dict: dict) -> dict:
@@ -20,13 +20,21 @@ def _add_request_id(_logger, _method_name: str, event_dict: dict) -> dict:
     return event_dict
 
 
+def _add_user_id(_logger, _method_name: str, event_dict: dict) -> dict:
+    """Attach the current authenticated user ID from context when available."""
+    user_id = get_current_user_id()
+    if user_id and "user_id" not in event_dict:
+        event_dict["user_id"] = user_id
+    return event_dict
+
+
 def _shared_processors() -> list:
     return [
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         _add_request_id,
+        _add_user_id,
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
     ]
 
 
@@ -43,14 +51,18 @@ def configure_logging(*, stream: TextIO | None = None, renderer: str = "auto") -
 
     logging.basicConfig(level=level, stream=target_stream, format="%(message)s", force=True)
     structlog.reset_defaults()
+    renderer_processors = (
+        [
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(),
+        ]
+        if use_json
+        else [structlog.dev.ConsoleRenderer(colors=True)]
+    )
     structlog.configure(
         processors=[
             *_shared_processors(),
-            (
-                structlog.processors.JSONRenderer()
-                if use_json
-                else structlog.dev.ConsoleRenderer(colors=True)
-            ),
+            *renderer_processors,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
         logger_factory=structlog.PrintLoggerFactory(file=target_stream),
