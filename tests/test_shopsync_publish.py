@@ -187,8 +187,10 @@ async def test_smart_store_no_token(
 # ---------------------------------------------------------------------------
 
 async def test_coupang_mock_publish(
+    monkeypatch,
     bomb_result: ProductBombResult,
 ) -> None:
+    _patch_adapters(monkeypatch)
     publisher = ShopsyncPublisher()
     result = await publisher.publish(
         bomb_result=bomb_result,
@@ -197,7 +199,7 @@ async def test_coupang_mock_publish(
     )
     assert len(result.succeeded) == 1
     assert result.results[0].platform_post_id is not None
-    assert "coupang_mock_" in (result.results[0].platform_post_id or "")
+    assert "mock_coupang_wing_" in (result.results[0].platform_post_id or "")
 
 
 # ---------------------------------------------------------------------------

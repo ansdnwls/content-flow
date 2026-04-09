@@ -12,7 +12,7 @@ get_logger = logging_config.get_logger
 
 
 def setup_sentry() -> None:
-    init_sentry()
+    init_sentry(runtime="web")
 
 
 def setup_monitoring(_app: FastAPI) -> None:

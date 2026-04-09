@@ -1,6 +1,8 @@
 """Tests for ShopSync Product Content Bomb engine and channel renderers."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from app.services.channel_renderers.coupang_renderer import render_coupang
@@ -262,16 +264,58 @@ async def test_naver_smart_store_validate_no_token() -> None:
 # Coupang WING mock adapter
 # ---------------------------------------------------------------------------
 
-async def test_coupang_mock_publish() -> None:
-    """Mock adapter returns success with mock ID."""
+class _FakeCoupangResponse:
+    def __init__(self, status_code: int, payload: dict) -> None:
+        self.status_code = status_code
+        self._payload = payload
+        self.text = "ok"
+
+    def json(self) -> dict:
+        return self._payload
+
+
+class _FakeCoupangClient:
+    def __init__(self, *args, **kwargs) -> None:
+        return None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    async def post(self, *_args, **_kwargs) -> _FakeCoupangResponse:
+        return _FakeCoupangResponse(200, {"data": "coupang_mock_123", "mock": True})
+
+    async def get(self, *_args, **_kwargs) -> _FakeCoupangResponse:
+        return _FakeCoupangResponse(200, {"mock": True})
+
+    async def delete(self, *_args, **_kwargs) -> _FakeCoupangResponse:
+        return _FakeCoupangResponse(204, {})
+
+
+def _coupang_credentials() -> dict[str, str]:
+    return {
+        "access_key": "access-key",
+        "secret_key": "secret-key",
+        "vendor_id": "vendor-123",
+    }
+
+
+async def test_coupang_mock_publish(monkeypatch) -> None:
+    """Mock adapter returns success with mocked HTTP responses."""
     from app.adapters.coupang_wing import CoupangWingAdapter
 
+    monkeypatch.setattr(
+        "app.adapters.coupang_wing.httpx",
+        SimpleNamespace(AsyncClient=_FakeCoupangClient),
+    )
     adapter = CoupangWingAdapter()
     result = await adapter.publish(
         text=None,
         media=[],
-        options={"product_name": "테스트 상품", "price": 10000},
-        credentials={},
+        options={"product_name": "테스트 상품", "price": 10000, "category_id": "1001"},
+        credentials=_coupang_credentials(),
     )
     assert result.success is True
     assert result.platform_post_id is not None
@@ -294,17 +338,25 @@ async def test_coupang_mock_publish_missing_name() -> None:
     assert result.success is False
 
 
-async def test_coupang_mock_validate() -> None:
-    """Mock adapter always validates successfully."""
+async def test_coupang_mock_validate(monkeypatch) -> None:
+    """Mock adapter validates successfully with mocked HTTP responses."""
     from app.adapters.coupang_wing import CoupangWingAdapter
 
+    monkeypatch.setattr(
+        "app.adapters.coupang_wing.httpx",
+        SimpleNamespace(AsyncClient=_FakeCoupangClient),
+    )
     adapter = CoupangWingAdapter()
-    assert await adapter.validate_credentials({}) is True
+    assert await adapter.validate_credentials(_coupang_credentials()) is True
 
 
-async def test_coupang_mock_delete() -> None:
-    """Mock adapter delete always succeeds."""
+async def test_coupang_mock_delete(monkeypatch) -> None:
+    """Mock adapter delete succeeds with mocked HTTP responses."""
     from app.adapters.coupang_wing import CoupangWingAdapter
 
+    monkeypatch.setattr(
+        "app.adapters.coupang_wing.httpx",
+        SimpleNamespace(AsyncClient=_FakeCoupangClient),
+    )
     adapter = CoupangWingAdapter()
-    assert await adapter.delete("any-id", {}) is True
+    assert await adapter.delete("any-id", _coupang_credentials()) is True

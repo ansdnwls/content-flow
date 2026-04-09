@@ -4,8 +4,10 @@ from celery.signals import task_postrun
 
 from app.config import get_settings
 from app.core.metrics import record_celery_task
+from app.core.sentry_init import init_sentry
 
 settings = get_settings()
+init_sentry(settings=settings, runtime="worker")
 
 celery_app = Celery(
     "contentflow",
