@@ -21,7 +21,7 @@ _PROTECTED_ROUTES: list[tuple[str, str]] = [
     ("GET", "/api/v1/billing/subscription"),
     ("POST", "/api/v1/billing/checkout"),
     ("GET", "/api/v1/usage"),
-    ("GET", "/api/v1/onboarding/status"),
+    ("GET", "/api/v1/onboarding/progress"),
     ("GET", "/api/v1/notifications/preferences"),
     ("POST", "/api/v1/auth/verify-email/request"),
     ("GET", "/api/v1/audit"),

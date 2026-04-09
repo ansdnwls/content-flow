@@ -2,159 +2,113 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from app.api.deps import AuthenticatedUser, get_current_user
 from app.api.error_responses import COMMON_RESPONSES
-from app.core.db import get_supabase
+from app.services.onboarding_service import (
+    STEP_IDS,
+    complete_step,
+    get_next_action,
+    get_progress,
+    skip_remaining,
+)
 
 router = APIRouter(
     prefix="/onboarding", tags=["Onboarding"], responses=COMMON_RESPONSES,
 )
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 
-ONBOARDING_STEPS = [
-    "verify_email",
-    "create_api_key",
-    "connect_first_account",
-    "first_post",
-    "first_video",
-]
+
+# ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
 
 
 class StepStatus(BaseModel):
     id: str
+    title: str
+    description: str
+    optional: bool
     completed: bool
+    completed_at: str | None = None
+    data: dict[str, Any] | None = None
 
 
-class OnboardingStatusResponse(BaseModel):
+class OnboardingProgressResponse(BaseModel):
     steps: list[StepStatus]
-    progress: int
+    completed_count: int
+    total_steps: int
+    progress_pct: int
+    all_complete: bool
 
 
-class OnboardingCompleteResponse(BaseModel):
-    completed: bool
+class StepCompleteRequest(BaseModel):
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
-def _compute_steps(user: dict) -> list[StepStatus]:
-    """Derive step completion from user data and related tables."""
-    saved = user.get("onboarding_steps") or {}
-    sb = get_supabase()
-    user_id = user["id"]
+class NextActionResponse(BaseModel):
+    step: str
+    title: str
+    description: str
+    optional: bool
+    hints: dict[str, Any]
 
-    checks: dict[str, bool] = {
-        "verify_email": bool(user.get("email_verified")),
-        "create_api_key": (
-            len(
-                sb.table("api_keys")
-                .select("id")
-                .eq("user_id", user_id)
-                .execute()
-                .data,
-            )
-            > 1  # auth key + at least one more
-        ),
-        "connect_first_account": (
-            len(
-                sb.table("social_accounts")
-                .select("id")
-                .eq("owner_id", user_id)
-                .execute()
-                .data,
-            )
-            > 0
-        ),
-        "first_post": (
-            len(
-                sb.table("posts")
-                .select("id")
-                .eq("owner_id", user_id)
-                .execute()
-                .data,
-            )
-            > 0
-        ),
-        "first_video": (
-            len(
-                sb.table("video_jobs")
-                .select("id")
-                .eq("owner_id", user_id)
-                .execute()
-                .data,
-            )
-            > 0
-        ),
-    }
 
-    for step_id in ONBOARDING_STEPS:
-        if saved.get(step_id) == "skipped":
-            checks[step_id] = True
-
-    return [StepStatus(id=s, completed=checks.get(s, False)) for s in ONBOARDING_STEPS]
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.get(
-    "/status",
-    response_model=OnboardingStatusResponse,
-    summary="Get Onboarding Status",
+    "/progress",
+    response_model=OnboardingProgressResponse,
+    summary="Get onboarding progress",
 )
-async def get_onboarding_status(user: CurrentUser) -> OnboardingStatusResponse:
-    sb = get_supabase()
-    row = (
-        sb.table("users")
-        .select("*")
-        .eq("id", user.id)
-        .single()
-        .execute()
-        .data
-    )
-    steps = _compute_steps(row)
-    done = sum(1 for s in steps if s.completed)
-    progress = int(done / len(steps) * 100) if steps else 0
-    return OnboardingStatusResponse(steps=steps, progress=progress)
+async def get_onboarding_progress(user: CurrentUser) -> OnboardingProgressResponse:
+    """Return all steps with their completion status."""
+    result = get_progress(user.id)
+    return OnboardingProgressResponse(**result)
 
 
 @router.post(
-    "/skip/{step}",
-    response_model=OnboardingStatusResponse,
-    summary="Skip Onboarding Step",
+    "/steps/{step}/complete",
+    response_model=OnboardingProgressResponse,
+    summary="Complete an onboarding step",
 )
-async def skip_step(step: str, user: CurrentUser) -> OnboardingStatusResponse:
-    sb = get_supabase()
-    row = (
-        sb.table("users")
-        .select("*")
-        .eq("id", user.id)
-        .single()
-        .execute()
-        .data
-    )
-    saved = dict(row.get("onboarding_steps") or {})
-    saved[step] = "skipped"
-    sb.table("users").update(
-        {"onboarding_steps": saved},
-    ).eq("id", user.id).execute()
-
-    row["onboarding_steps"] = saved
-    steps = _compute_steps(row)
-    done = sum(1 for s in steps if s.completed)
-    progress = int(done / len(steps) * 100) if steps else 0
-    return OnboardingStatusResponse(steps=steps, progress=progress)
+async def complete_onboarding_step(
+    step: str, user: CurrentUser, body: StepCompleteRequest | None = None,
+) -> OnboardingProgressResponse:
+    """Mark a specific onboarding step as completed."""
+    if step not in STEP_IDS:
+        raise HTTPException(status_code=422, detail=f"Unknown step: {step}")
+    data = body.data if body else {}
+    result = complete_step(user.id, step, data=data)
+    return OnboardingProgressResponse(**result)
 
 
 @router.post(
-    "/complete",
-    response_model=OnboardingCompleteResponse,
-    summary="Mark Onboarding Complete",
+    "/skip",
+    response_model=OnboardingProgressResponse,
+    summary="Skip remaining onboarding steps",
 )
-async def complete_onboarding(
-    user: CurrentUser,
-) -> OnboardingCompleteResponse:
-    sb = get_supabase()
-    sb.table("users").update(
-        {"onboarding_completed": True},
-    ).eq("id", user.id).execute()
-    return OnboardingCompleteResponse(completed=True)
+async def skip_onboarding(user: CurrentUser) -> OnboardingProgressResponse:
+    """Mark all remaining steps as skipped and complete onboarding."""
+    result = skip_remaining(user.id)
+    return OnboardingProgressResponse(**result)
+
+
+@router.get(
+    "/next-action",
+    response_model=NextActionResponse | None,
+    summary="Get recommended next step",
+)
+async def get_next_onboarding_action(user: CurrentUser) -> NextActionResponse | None:
+    """Return the next incomplete step with hints, or null if all done."""
+    result = get_next_action(user.id)
+    if result is None:
+        return None
+    return NextActionResponse(**result)

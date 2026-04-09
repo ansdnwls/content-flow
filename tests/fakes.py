@@ -211,6 +211,7 @@ class FakeSupabase:
             "ytboost_channel_tones": [],
             "shopsync_products": [],
             "shopsync_bulk_jobs": [],
+            "onboarding_progress": [],
         }
         self.query_counts: dict[str, int] = {}
 

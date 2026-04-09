@@ -1,15 +1,11 @@
-"""Admin authentication — X-Admin-Key header validation.
-
-Admin keys are stored in the api_keys table with key_prefix = 'cf_admin'.
-Separated from regular API key auth to provide elevated privileges.
-"""
+"""Admin authentication via the X-Admin-Key header."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Request, Security
+from fastapi import Request, Response, Security
 from fastapi.security import APIKeyHeader
 
 from app.config import get_settings
@@ -42,13 +38,10 @@ async def _touch_last_used(sb, redis, api_key_id: str) -> None:
 
 async def get_admin_user(
     request: Request,
+    response: Response = None,
     admin_key: Annotated[str | None, Security(_admin_key_header)] = None,
 ) -> dict:
-    """Authenticate an admin via X-Admin-Key header.
-
-    Returns the admin user dict with id, email, plan.
-    Raises 401 if key is missing/invalid, 403 if user is not on enterprise plan.
-    """
+    """Authenticate an enterprise admin via X-Admin-Key."""
     if not admin_key:
         raise AuthenticationError("Missing X-Admin-Key header")
 
@@ -96,23 +89,41 @@ async def get_admin_user(
             )
             break
 
-    if row:
-        await _touch_last_used(sb, redis, row["id"])
+    if not row:
+        raise AuthenticationError("Invalid admin key")
 
-        user_result = (
-            sb.table("users")
-            .select("id, email, plan")
-            .eq("id", row["user_id"])
-            .maybe_single()
-            .execute()
+    await _touch_last_used(sb, redis, row["id"])
+
+    user_result = (
+        sb.table("users")
+        .select("id, email, plan")
+        .eq("id", row["user_id"])
+        .maybe_single()
+        .execute()
+    )
+    user = user_result.data
+    if not user:
+        raise AuthenticationError("Admin user not found for API key")
+
+    if user["plan"] != "enterprise":
+        raise ForbiddenError("Admin access requires enterprise plan")
+
+    request.state.user_id = user["id"]
+    request.state.api_key_prefix = "cf_admin"
+    request.state.admin_user = user
+
+    from app.api.deps import AuthenticatedUser
+    from app.core.rate_limit_dep import enforce_rate_limit
+
+    if response is not None:
+        await enforce_rate_limit(
+            request,
+            response,
+            AuthenticatedUser(
+                id=user["id"],
+                email=user["email"],
+                plan=user["plan"],
+                is_test_key=False,
+            ),
         )
-        user = user_result.data
-        if not user:
-            raise AuthenticationError("Admin user not found for API key")
-
-        if user["plan"] != "enterprise":
-            raise ForbiddenError("Admin access requires enterprise plan")
-
-        return user
-
-    raise AuthenticationError("Invalid admin key")
+    return user

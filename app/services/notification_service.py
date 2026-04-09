@@ -16,6 +16,7 @@ NOTIFICATION_TYPES = frozenset({
     "quota_warning",
     "webhook_failed",
     "shorts_extracted",
+    "onboarding_complete",
 })
 
 logger = get_logger(__name__)

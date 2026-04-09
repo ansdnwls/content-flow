@@ -36,6 +36,7 @@ celery_app.conf.update(
         "app.workers.trending_worker",
         "app.workers.scheduler",
         "app.workers.shopsync_bulk_worker",
+        "app.workers.onboarding_worker",
     ),
     beat_schedule={
         "schedule-due-posts-every-minute": {
@@ -77,6 +78,10 @@ celery_app.conf.update(
         "run-retention-policies-daily": {
             "task": "contentflow.run_retention_policies",
             "schedule": crontab(hour=3, minute=0),
+        },
+        "send-onboarding-emails-every-30-minutes": {
+            "task": "contentflow.send_onboarding_emails",
+            "schedule": 1800.0,
         },
     },
 )

@@ -12,7 +12,7 @@ from app.core.admin_auth import get_admin_user
 from app.core.db import get_supabase
 from app.workers.celery_app import celery_app
 
-from . import feature_flags
+from . import dashboard, feature_flags
 
 router = APIRouter(
     prefix="/admin",
@@ -145,11 +145,7 @@ async def get_user_detail(user_id: str, admin: AdminUser) -> UserDetail:
         sb.table("posts").select("id", count="exact").eq("owner_id", user_id).execute().count or 0
     )
     videos_count = (
-        sb.table("video_jobs")
-        .select("id", count="exact")
-        .eq("owner_id", user_id)
-        .execute()
-        .count
+        sb.table("video_jobs").select("id", count="exact").eq("owner_id", user_id).execute().count
         or 0
     )
     accounts_count = (
@@ -201,11 +197,7 @@ async def suspend_user(
 ) -> dict[str, Any]:
     sb = get_supabase()
     user_result = (
-        sb.table("users")
-        .select("id, is_active")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
+        sb.table("users").select("id, is_active").eq("id", user_id).maybe_single().execute()
     )
     user = user_result.data
     if not user:
@@ -357,11 +349,7 @@ async def compliance_dashboard(admin: AdminUser) -> ComplianceDashboard:
 
     total_users = sb.table("users").select("id", count="exact").execute().count or 0
     consented = (
-        sb.table("consents")
-        .select("user_id", count="exact")
-        .eq("granted", True)
-        .execute()
-        .count
+        sb.table("consents").select("user_id", count="exact").eq("granted", True).execute().count
         or 0
     )
     pending_del = (
@@ -429,9 +417,14 @@ async def compliance_data_requests(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> ComplianceDataRequestsResponse:
     sb = get_supabase()
-    logs = sb.table("audit_logs").select(
-        "id, user_id, action, resource, created_at, ip, metadata",
-    ).execute().data
+    logs = (
+        sb.table("audit_logs")
+        .select(
+            "id, user_id, action, resource, created_at, ip, metadata",
+        )
+        .execute()
+        .data
+    )
 
     privacy_actions = [
         row
@@ -446,3 +439,4 @@ async def compliance_data_requests(
 
 
 router.include_router(feature_flags.router)
+router.include_router(dashboard.router)
