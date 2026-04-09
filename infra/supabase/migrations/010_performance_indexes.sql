@@ -56,15 +56,39 @@ begin
     end if;
 end $$;
 
-create index if not exists idx_audit_logs_user_created_desc
-    on public.audit_logs(user_id, created_at desc);
+do $$
+begin
+    if exists (
+        select 1 from information_schema.tables
+        where table_schema = 'public' and table_name = 'audit_logs'
+    ) then
+        execute 'create index if not exists idx_audit_logs_user_created_desc
+                 on public.audit_logs(user_id, created_at desc)';
+    end if;
+end $$;
 
-create index if not exists idx_audit_logs_action_created_desc
-    on public.audit_logs(action, created_at desc);
+do $$
+begin
+    if exists (
+        select 1 from information_schema.tables
+        where table_schema = 'public' and table_name = 'audit_logs'
+    ) then
+        execute 'create index if not exists idx_audit_logs_action_created_desc
+                 on public.audit_logs(action, created_at desc)';
+    end if;
+end $$;
 
-create index if not exists idx_webhook_deliveries_pending_failed_retry
-    on public.webhook_deliveries(status, next_retry_at)
-    where status in ('pending', 'failed');
+do $$
+begin
+    if exists (
+        select 1 from information_schema.tables
+        where table_schema = 'public' and table_name = 'webhook_deliveries'
+    ) then
+        execute 'create index if not exists idx_webhook_deliveries_pending_failed_retry
+                 on public.webhook_deliveries(status, next_retry_at)
+                 where status in (''pending'', ''failed'')';
+    end if;
+end $$;
 
 do $$
 begin
