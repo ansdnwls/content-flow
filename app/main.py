@@ -11,6 +11,7 @@ from app.api.webhooks.yt_factory import router as yt_factory_webhook_router
 from app.config import get_settings
 from app.core.audit import reset_audit_writer
 from app.core.cache import reset_redis_client as reset_cache_redis_client
+from app.core.config_validator import validate_on_startup
 from app.core.middleware import ErrorTrackingMiddleware, LoggingMiddleware
 from app.core.monitoring import setup_monitoring
 from app.core.request_id import RequestIdMiddleware
@@ -23,6 +24,7 @@ from app.core.timing_middleware import TimingMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    validate_on_startup(settings)
     app.state.redis = Redis.from_url(settings.redis_url, decode_responses=True)
     yield
     await reset_audit_writer()
