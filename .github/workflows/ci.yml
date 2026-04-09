@@ -34,7 +34,11 @@ jobs:
         run: ruff check .
 
       - name: Pytest with coverage
-        run: pytest -q --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+        run: pytest -q --timeout=60 --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Pytest last failed
+        if: failure()
+        run: pytest -q --lf --timeout=60
 
       - name: Upload coverage report
         if: always()

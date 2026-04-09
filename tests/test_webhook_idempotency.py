@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import fakeredis.aioredis
 import httpx
+import pytest_asyncio
 from redis.exceptions import RedisError
 
 from app.core.webhook_dispatcher import (
@@ -39,7 +40,28 @@ async def _get_fake_redis():
     return fakeredis.aioredis.FakeRedis(decode_responses=True)
 
 
-async def test_same_event_is_sent_only_once(monkeypatch) -> None:
+@pytest_asyncio.fixture
+async def mock_dispatcher_client(monkeypatch):
+    clients: list[httpx.AsyncClient] = []
+
+    def install(handler) -> None:
+        def factory() -> httpx.AsyncClient:
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(
+            "app.core.webhook_dispatcher._create_http_client",
+            factory,
+        )
+
+    yield install
+
+    for client in clients:
+        await client.aclose()
+
+
+async def test_same_event_is_sent_only_once(monkeypatch, mock_dispatcher_client) -> None:
     fake = FakeSupabase()
     owner_id = str(uuid4())
     _add_webhook(fake, owner_id)
@@ -55,10 +77,7 @@ async def test_same_event_is_sent_only_once(monkeypatch) -> None:
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
+    mock_dispatcher_client(handler)
 
     payload = {"post_id": "post-1"}
     await dispatch_event(owner_id, "post.published", payload)
@@ -81,7 +100,7 @@ async def test_idempotency_store_saves_and_loads() -> None:
     assert loaded == {"status": "delivered", "delivery_id": "delivery-1"}
 
 
-async def test_retry_reuses_same_event_id(monkeypatch) -> None:
+async def test_retry_reuses_same_event_id(monkeypatch, mock_dispatcher_client) -> None:
     fake = FakeSupabase()
     owner_id = str(uuid4())
     webhook = _add_webhook(fake, owner_id)
@@ -112,10 +131,7 @@ async def test_retry_reuses_same_event_id(monkeypatch) -> None:
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
+    mock_dispatcher_client(handler)
 
     success = await retry_delivery(delivery)
 
@@ -137,7 +153,10 @@ async def test_ttl_expiry_allows_store_key_to_expire() -> None:
     assert await store.get(key) is None
 
 
-async def test_failed_delivery_moves_to_dead_letter_queue(monkeypatch) -> None:
+async def test_failed_delivery_moves_to_dead_letter_queue(
+    monkeypatch,
+    mock_dispatcher_client,
+) -> None:
     fake = FakeSupabase()
     owner_id = str(uuid4())
     webhook = _add_webhook(fake, owner_id)
@@ -162,12 +181,7 @@ async def test_failed_delivery_moves_to_dead_letter_queue(monkeypatch) -> None:
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _request: httpx.Response(500)),
-        ),
-    )
+    mock_dispatcher_client(lambda _request: httpx.Response(500))
 
     success = await retry_delivery(delivery)
 
@@ -183,7 +197,10 @@ def test_exponential_backoff_schedule() -> None:
     ] == [60, 300, 1800, 7200, 43200]
 
 
-async def test_different_webhooks_are_independent(monkeypatch) -> None:
+async def test_different_webhooks_are_independent(
+    monkeypatch,
+    mock_dispatcher_client,
+) -> None:
     fake = FakeSupabase()
     owner_id = str(uuid4())
     _add_webhook(fake, owner_id, target_url="https://example.com/one")
@@ -200,10 +217,7 @@ async def test_different_webhooks_are_independent(monkeypatch) -> None:
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
+    mock_dispatcher_client(handler)
 
     await dispatch_event(owner_id, "post.published", {"post_id": "post-4"})
 

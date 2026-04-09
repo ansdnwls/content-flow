@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import fakeredis.aioredis
 import httpx
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.core.auth import build_api_key_record
@@ -51,7 +52,31 @@ async def _get_fake_redis():
     return fakeredis.aioredis.FakeRedis(decode_responses=True)
 
 
-async def test_dispatch_event_enqueues_failed_delivery_and_signs_request(monkeypatch) -> None:
+@pytest_asyncio.fixture
+async def mock_dispatcher_client(monkeypatch):
+    clients: list[httpx.AsyncClient] = []
+
+    def install(handler) -> None:
+        def factory() -> httpx.AsyncClient:
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(
+            "app.core.webhook_dispatcher._create_http_client",
+            factory,
+        )
+
+    yield install
+
+    for client in clients:
+        await client.aclose()
+
+
+async def test_dispatch_event_enqueues_failed_delivery_and_signs_request(
+    monkeypatch,
+    mock_dispatcher_client,
+) -> None:
     fake = FakeSupabase()
     owner_id = str(uuid4())
     webhook = _add_webhook(fake, owner_id)
@@ -73,10 +98,7 @@ async def test_dispatch_event_enqueues_failed_delivery_and_signs_request(monkeyp
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
+    mock_dispatcher_client(handler)
 
     await dispatch_event(owner_id, "post.published", {"post_id": "post-1"})
 
@@ -87,7 +109,10 @@ async def test_dispatch_event_enqueues_failed_delivery_and_signs_request(monkeyp
     assert await redis.zrange(WEBHOOK_RETRY_QUEUE_KEY, 0, -1) == [delivery["id"]]
 
 
-async def test_retry_worker_processes_due_retry_queue(monkeypatch) -> None:
+async def test_retry_worker_processes_due_retry_queue(
+    monkeypatch,
+    mock_dispatcher_client,
+) -> None:
     from app.workers.webhook_retry_worker import process_due_deliveries
 
     fake = FakeSupabase()
@@ -116,12 +141,7 @@ async def test_retry_worker_processes_due_retry_queue(monkeypatch) -> None:
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _request: httpx.Response(200)),
-        ),
-    )
+    mock_dispatcher_client(lambda _request: httpx.Response(200))
 
     result = await process_due_deliveries()
 
@@ -130,7 +150,10 @@ async def test_retry_worker_processes_due_retry_queue(monkeypatch) -> None:
     assert await redis.zrange(WEBHOOK_RETRY_QUEUE_KEY, 0, -1) == []
 
 
-async def test_retry_delivery_moves_to_dead_letter_queue(monkeypatch) -> None:
+async def test_retry_delivery_moves_to_dead_letter_queue(
+    monkeypatch,
+    mock_dispatcher_client,
+) -> None:
     fake = FakeSupabase()
     owner_id = str(uuid4())
     webhook = _add_webhook(fake, owner_id)
@@ -157,12 +180,7 @@ async def test_retry_delivery_moves_to_dead_letter_queue(monkeypatch) -> None:
 
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _request: httpx.Response(500)),
-        ),
-    )
+    mock_dispatcher_client(lambda _request: httpx.Response(500))
 
     delivered = await retry_delivery(delivery)
 
@@ -221,7 +239,10 @@ async def test_webhook_api_lists_deliveries_and_dead_letters(monkeypatch) -> Non
     assert dead_letters.json()["data"][0]["status"] == "dead_letter"
 
 
-async def test_webhook_api_redeliver_and_replay(monkeypatch) -> None:
+async def test_webhook_api_redeliver_and_replay(
+    monkeypatch,
+    mock_dispatcher_client,
+) -> None:
     from app.main import app
 
     fake = FakeSupabase()
@@ -248,12 +269,7 @@ async def test_webhook_api_redeliver_and_replay(monkeypatch) -> None:
     monkeypatch.setattr("app.api.v1.webhooks.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_supabase", lambda: fake)
     monkeypatch.setattr("app.core.webhook_dispatcher.get_redis", fake_get_redis)
-    monkeypatch.setattr(
-        "app.core.webhook_dispatcher._create_http_client",
-        lambda: httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _request: httpx.Response(200)),
-        ),
-    )
+    mock_dispatcher_client(lambda _request: httpx.Response(200))
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
