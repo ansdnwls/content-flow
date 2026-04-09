@@ -127,7 +127,7 @@ _PAYLOAD_BUILDERS = {
 
 def _get_adapter(channel: str) -> Any:
     """Lazily import and instantiate the adapter for *channel*."""
-    if channel == "smart_store":
+    if channel in ("smart_store", "naver_smart_store"):
         from app.adapters.naver_smart_store import NaverSmartStoreAdapter
 
         return NaverSmartStoreAdapter()

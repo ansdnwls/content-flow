@@ -1,6 +1,9 @@
-"""Naver Commerce API OAuth 2.0 provider."""
+"""Naver Commerce API OAuth 2.0 provider with HMAC-SHA256 signing."""
 from __future__ import annotations
 
+import hashlib
+import hmac
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -16,6 +19,45 @@ _DEFAULT_SCOPES = [
     "product",
     "product.image",
 ]
+
+
+def generate_signature(client_id: str, client_secret: str, timestamp: int) -> str:
+    """Generate HMAC-SHA256 signature for Naver Commerce API.
+
+    Signature = HMAC-SHA256(client_secret, f"{client_id}_{timestamp}")
+    """
+    base = f"{client_id}_{timestamp}"
+    return hmac.new(
+        client_secret.encode(),
+        base.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def verify_signature(
+    client_id: str,
+    client_secret: str,
+    timestamp: int,
+    signature: str,
+) -> bool:
+    """Verify an HMAC-SHA256 signature."""
+    expected = generate_signature(client_id, client_secret, timestamp)
+    return hmac.compare_digest(expected, signature)
+
+
+def _build_auth_headers(access_token: str) -> dict[str, str]:
+    """Build authorization headers with Bearer token and timestamp."""
+    settings = get_settings()
+    ts = int(time.time() * 1000)
+    client_id = settings.naver_commerce_client_id or ""
+    client_secret = settings.naver_commerce_client_secret or ""
+    sig = generate_signature(client_id, client_secret, ts)
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "X-Naver-Client-Id": client_id,
+        "X-Naver-Timestamp": str(ts),
+        "X-Naver-Signature": sig,
+    }
 
 
 class NaverCommerceOAuthProvider(OAuthProvider):
@@ -46,15 +88,22 @@ class NaverCommerceOAuthProvider(OAuthProvider):
     ) -> OAuthTokenResponse:
         """Exchange authorization code for access + refresh tokens."""
         settings = get_settings()
+        ts = int(time.time() * 1000)
+        client_id = settings.naver_commerce_client_id or ""
+        client_secret = settings.naver_commerce_client_secret or ""
+        sig = generate_signature(client_id, client_secret, ts)
+
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 _TOKEN_URL,
                 data={
                     "grant_type": "authorization_code",
-                    "client_id": settings.naver_commerce_client_id or "",
-                    "client_secret": settings.naver_commerce_client_secret or "",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "code": code,
                     "redirect_uri": redirect_uri,
+                    "timestamp": str(ts),
+                    "signature": sig,
                 },
             )
             resp.raise_for_status()
@@ -74,14 +123,21 @@ class NaverCommerceOAuthProvider(OAuthProvider):
     ) -> OAuthTokenResponse:
         """Refresh an expired access token."""
         settings = get_settings()
+        ts = int(time.time() * 1000)
+        client_id = settings.naver_commerce_client_id or ""
+        client_secret = settings.naver_commerce_client_secret or ""
+        sig = generate_signature(client_id, client_secret, ts)
+
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 _TOKEN_URL,
                 data={
                     "grant_type": "refresh_token",
-                    "client_id": settings.naver_commerce_client_id or "",
-                    "client_secret": settings.naver_commerce_client_secret or "",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "refresh_token": refresh_token,
+                    "timestamp": str(ts),
+                    "signature": sig,
                 },
             )
             resp.raise_for_status()
@@ -100,15 +156,14 @@ class NaverCommerceOAuthProvider(OAuthProvider):
         access_token: str,
     ) -> OAuthUserInfo:
         """Fetch seller profile from Naver Commerce API."""
+        headers = _build_auth_headers(access_token)
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                _SELLER_URL,
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
+            resp = await client.get(_SELLER_URL, headers=headers)
             resp.raise_for_status()
             data = resp.json()
 
         seller = data.get("content", data)
+        bizmember_id = str(seller.get("bizMemberId", ""))
         return OAuthUserInfo(
             platform_user_id=str(seller.get("channelNo", "")),
             handle=seller.get("channelName", ""),
@@ -117,5 +172,6 @@ class NaverCommerceOAuthProvider(OAuthProvider):
                 "channel_id": seller.get("channelId"),
                 "channel_name": seller.get("channelName"),
                 "business_type": seller.get("businessType"),
+                "bizmember_id": bizmember_id,
             },
         )

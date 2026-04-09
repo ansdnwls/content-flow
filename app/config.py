@@ -21,7 +21,12 @@ class Settings(BaseSettings):
         alias="STRUCTURED_LOGGING_ENABLED",
     )
     sentry_dsn: str | None = Field(default=None, alias="SENTRY_DSN")
+    sentry_environment: str | None = Field(default=None, alias="SENTRY_ENVIRONMENT")
     sentry_traces_sample_rate: float = Field(default=0.0, alias="SENTRY_TRACES_SAMPLE_RATE")
+    sentry_profiles_sample_rate: float = Field(
+        default=0.0,
+        alias="SENTRY_PROFILES_SAMPLE_RATE",
+    )
     prometheus_enabled: bool = Field(default=True, alias="PROMETHEUS_ENABLED")
 
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
@@ -85,6 +90,21 @@ class Settings(BaseSettings):
     naver_commerce_client_secret: str | None = Field(
         default=None,
         alias="NAVER_COMMERCE_CLIENT_SECRET",
+    )
+    naver_commerce_redirect_uri: str = Field(
+        default="http://localhost:8000/api/v1/accounts/callback/naver_commerce",
+        alias="NAVER_COMMERCE_REDIRECT_URI",
+    )
+
+    # Coupang WING
+    coupang_access_key: str | None = Field(
+        default=None, alias="COUPANG_ACCESS_KEY",
+    )
+    coupang_secret_key: str | None = Field(
+        default=None, alias="COUPANG_SECRET_KEY",
+    )
+    coupang_vendor_id: str | None = Field(
+        default=None, alias="COUPANG_VENDOR_ID",
     )
 
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
