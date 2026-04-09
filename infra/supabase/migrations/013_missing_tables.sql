@@ -332,6 +332,9 @@ create table if not exists public.webhook_deliveries (
 -- Foreign keys that depend on newly created tables
 -- ---------------------------------------------------------------------------
 
+alter table public.users
+    add column if not exists default_workspace_id uuid;
+
 do $$
 begin
     if not exists (
