@@ -157,7 +157,9 @@ def _get_webhook(webhook_id: str, owner_id: str | None = None) -> dict[str, Any]
     )
     if owner_id is not None:
         query = query.eq("owner_id", owner_id)
-    return query.maybe_single().execute().data
+    response = query.limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 def _get_delivery(delivery_id: str, owner_id: str | None = None) -> dict[str, Any] | None:
@@ -165,19 +167,22 @@ def _get_delivery(delivery_id: str, owner_id: str | None = None) -> dict[str, An
     query = sb.table("webhook_deliveries").select("*").eq("id", delivery_id)
     if owner_id is not None:
         query = query.eq("owner_id", owner_id)
-    return query.maybe_single().execute().data
+    response = query.limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 def _get_delivery_by_idempotency_key(idempotency_key: str) -> dict[str, Any] | None:
-    return (
+    response = (
         get_supabase()
         .table("webhook_deliveries")
         .select("*")
         .eq("idempotency_key", idempotency_key)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 async def _deliver_once(

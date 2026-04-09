@@ -87,12 +87,13 @@ def _serialize_workspace(row: dict, role: str) -> WorkspaceResponse:
         updated_at=row["updated_at"],
     )
 
-
 def _ensure_slug_available(slug: str, workspace_id: str | None = None) -> None:
     sb = get_supabase()
-    result = sb.table("workspaces").select("id").eq("slug", slug).maybe_single().execute().data
-    if result and result["id"] != workspace_id:
+    response = sb.table("workspaces").select("id").eq("slug", slug).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    if rows and rows[0]["id"] != workspace_id:
         raise HTTPException(status_code=409, detail="Workspace slug is already in use")
+
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=201, summary="Create Workspace")
