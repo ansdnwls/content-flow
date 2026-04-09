@@ -1,0 +1,135 @@
+name: Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Scenario to run"
+        required: true
+        type: choice
+        default: normal_user
+        options:
+          - normal_user
+          - spike
+          - sustained
+          - bulk_posting
+      target_host:
+        description: "Base URL for the target API"
+        required: false
+        type: string
+      api_key:
+        description: "Optional API key override for manual runs"
+        required: false
+        type: string
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_TARGET_HOST: ${{ vars.LOAD_TEST_HOST }}
+      DEFAULT_API_KEY: ${{ secrets.LOAD_TEST_API_KEY }}
+      DEFAULT_SCENARIO: sustained
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install locust
+
+      - name: Resolve run config
+        id: config
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SCENARIO="${{ inputs.scenario }}"
+            TARGET_HOST="${{ inputs.target_host }}"
+            API_KEY="${{ inputs.api_key }}"
+          else
+            SCENARIO="${DEFAULT_SCENARIO}"
+            TARGET_HOST="${DEFAULT_TARGET_HOST}"
+            API_KEY="${DEFAULT_API_KEY}"
+          fi
+
+          if [ -z "${TARGET_HOST}" ]; then
+            echo "LOAD_TEST_HOST is required for load testing." >&2
+            exit 1
+          fi
+
+          if [ -z "${API_KEY}" ]; then
+            echo "LOAD_TEST_API_KEY is required for authenticated load testing." >&2
+            exit 1
+          fi
+
+          echo "scenario=${SCENARIO}" >> "$GITHUB_OUTPUT"
+          echo "target_host=${TARGET_HOST}" >> "$GITHUB_OUTPUT"
+          echo "api_key=${API_KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve scenario profile
+        id: profile
+        shell: bash
+        env:
+          LOAD_TEST_SCENARIO: ${{ steps.config.outputs.scenario }}
+        run: |
+          readarray -t PROFILE_VALUES < <(python - <<'PY'
+          import importlib.util
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          path = Path("scripts/load_test/locustfile.py")
+          spec = importlib.util.spec_from_file_location("contentflow_locustfile", path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
+          profile = module.profile_as_dict(os.environ["LOAD_TEST_SCENARIO"])
+          print(json.dumps(profile))
+          print(profile["users"])
+          print(profile["spawn_rate"])
+          print(profile["run_time"])
+          PY
+          )
+          PROFILE_JSON="${PROFILE_VALUES[0]}"
+          USERS="${PROFILE_VALUES[1]}"
+          SPAWN_RATE="${PROFILE_VALUES[2]}"
+          RUN_TIME="${PROFILE_VALUES[3]}"
+          echo "profile_json=${PROFILE_JSON}" >> "$GITHUB_OUTPUT"
+          echo "users=${USERS}" >> "$GITHUB_OUTPUT"
+          echo "spawn_rate=${SPAWN_RATE}" >> "$GITHUB_OUTPUT"
+          echo "run_time=${RUN_TIME}" >> "$GITHUB_OUTPUT"
+
+      - name: Run Locust headless
+        env:
+          LOAD_TEST_SCENARIO: ${{ steps.config.outputs.scenario }}
+          LOAD_TEST_API_KEY: ${{ steps.config.outputs.api_key }}
+          LOAD_TEST_SUMMARY_PATH: reports/load/${{ steps.config.outputs.scenario }}-summary.json
+        run: |
+          mkdir -p reports/load
+          locust \
+            -f scripts/load_test/locustfile.py \
+            --host "${{ steps.config.outputs.target_host }}" \
+            --users "${{ steps.profile.outputs.users }}" \
+            --spawn-rate "${{ steps.profile.outputs.spawn_rate }}" \
+            --run-time "${{ steps.profile.outputs.run_time }}" \
+            --headless \
+            --html "reports/load/${{ steps.config.outputs.scenario }}.html" \
+            --csv "reports/load/${{ steps.config.outputs.scenario }}" \
+            --only-summary
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-${{ steps.config.outputs.scenario }}
+          path: reports/load/

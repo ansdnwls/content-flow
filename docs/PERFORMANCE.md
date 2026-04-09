@@ -64,20 +64,21 @@ pip install locust
 
 ### Scenarios
 
-| Scenario | Class | Weight | Description |
-|----------|-------|--------|-------------|
-| Posts API | `PostsUser` | 10 | Create post (w10), get single (w5), list (w3) |
-| Bulk + Bombs | `BulkBombUser` | 2 | Bulk create 10 posts (w2), create bomb (w1) |
-| Read-heavy | `ReadHeavyUser` | 5 | Analytics (w5), usage (w5), trending (w3) |
+| Scenario | Spawn Rate | Runtime | Description |
+|----------|------------|---------|-------------|
+| `normal_user` | `10 users/sec` | `5m` | Mixed authenticated post and analytics traffic |
+| `spike` | `1000 users/sec` | `1m` | Burst load and queue shock |
+| `sustained` | `100 users/sec` | `10m` | Longer steady-state regression |
+| `bulk_posting` | `25 users/sec` | `5m` | Content Bomb-heavy write load |
 
 ### Running Tests
 
 ```bash
 # Interactive mode (web UI at http://localhost:8089)
-locust -f tests/load/locustfile.py --host http://localhost:8000
+locust -f scripts/load_test/locustfile.py --host http://localhost:8000
 
-# Headless 100 / 500 / 1000 user runs
-./scripts/run_load_test.sh http://localhost:8000
+# Headless scenario run
+./scripts/run_load_test.sh http://localhost:8000 normal_user
 ```
 
 ## Expected Baselines
