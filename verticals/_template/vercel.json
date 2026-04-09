@@ -1,11 +1,29 @@
 {
-  "name": "template",
-  "builds": [
-    { "src": "landing/package.json", "use": "@vercel/next" },
-    { "src": "dashboard/package.json", "use": "@vercel/next" }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "cd dashboard && pnpm build",
+  "outputDirectory": "dashboard/.next",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.example.com/api/v1/:path*"
+    }
   ],
-  "routes": [
-    { "src": "/app/(.*)", "dest": "/dashboard/$1" },
-    { "src": "/(.*)", "dest": "/landing/$1" }
+  "env": {
+    "NEXT_PUBLIC_CF_API_URL": "@cf_api_url",
+    "NEXT_PUBLIC_CF_BRAND_NAME": "@cf_brand_name",
+    "NEXT_PUBLIC_CF_PRIMARY_COLOR": "@cf_primary_color",
+    "CF_API_KEY": "@cf_api_key"
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
   ]
 }
