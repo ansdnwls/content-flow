@@ -82,6 +82,31 @@ def _fallback_segments(duration_seconds: int) -> list[ShortClip]:
     return clips
 
 
+def _strip_markdown_code_fence(text: str) -> str:
+    """Remove ```json ... ``` or ``` ... ``` wrappers from Claude responses."""
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    lines = stripped.split("\n")
+    if len(lines) < 2:
+        return stripped
+    # Remove first line (```json or ```)
+    lines = lines[1:]
+    # Remove last line if it's ```
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _normalize_hashtags(value: Any) -> list[str]:
+    """Accept both list and space-separated string for hashtags."""
+    if isinstance(value, list):
+        return [str(tag) for tag in value]
+    if isinstance(value, str):
+        return [tag for tag in value.split() if tag]
+    return ["#shorts", "#ytboost"]
+
+
 async def _select_segments_with_claude(
     transcript: list[dict[str, Any]],
     *,
@@ -93,8 +118,9 @@ async def _select_segments_with_claude(
 
     prompt = (
         "Find the best 3 short-form clip segments from this YouTube transcript. "
-        "Return strict JSON as a list of objects with: start_seconds, end_seconds, "
-        "hook_line, reason, suggested_title, suggested_hashtags. "
+        "Return ONLY a raw JSON array (no markdown, no code fences, no explanation). "
+        "Each object must have: start_seconds, end_seconds, hook_line, reason, "
+        "suggested_title, suggested_hashtags (as array of strings). "
         "Each clip must be 45-60 seconds and self-contained.\n\n"
         f"Transcript:\n{json.dumps(transcript, ensure_ascii=True)}"
     )
@@ -121,13 +147,22 @@ async def _select_segments_with_claude(
         for part in payload.get("content", [])
         if part.get("type") == "text"
     ).strip()
+
+    # Strip markdown code fences if Claude wrapped the JSON
+    text = _strip_markdown_code_fence(text)
+
     try:
         raw_segments = json.loads(text)
     except json.JSONDecodeError:
         return _fallback_segments(duration_seconds)
 
+    if not isinstance(raw_segments, list):
+        return _fallback_segments(duration_seconds)
+
     clips: list[ShortClip] = []
     for index, segment in enumerate(raw_segments[:3], start=1):
+        if not isinstance(segment, dict):
+            continue
         start = int(segment.get("start_seconds", max((index - 1) * 60, 0)))
         end = int(segment.get("end_seconds", start + 55))
         clips.append(
@@ -137,7 +172,7 @@ async def _select_segments_with_claude(
                 hook_line=segment.get("hook_line", f"Hook {index}"),
                 reason=segment.get("reason", "Selected by Claude for high retention potential."),
                 suggested_title=segment.get("suggested_title", f"Short highlight {index}"),
-                suggested_hashtags=list(segment.get("suggested_hashtags", ["#shorts", "#ytboost"])),
+                suggested_hashtags=_normalize_hashtags(segment.get("suggested_hashtags")),
                 clip_file_url=(
                     f"https://cdn.contentflow.dev/ytboost/"
                     f"claude_{index}_{start}_{end}.mp4"
