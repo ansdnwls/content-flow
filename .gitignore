@@ -32,3 +32,4 @@ docs-site/openapi.json
 
 # Task briefings (disposable, not versioned)
 TASK_*.md
+docs/SESSION_STATE.md
