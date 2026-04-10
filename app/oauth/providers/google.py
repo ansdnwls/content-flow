@@ -17,9 +17,10 @@ _DEFAULT_SCOPES = {
     "youtube": [
         "https://www.googleapis.com/auth/youtube.upload",
         "https://www.googleapis.com/auth/youtube.readonly",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
     ],
 }
-
 
 class GoogleOAuthProvider(OAuthProvider):
     """Handles Google OAuth for YouTube (extendable to Google Business)."""
