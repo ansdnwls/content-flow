@@ -13,6 +13,7 @@ from app.api.error_responses import COMMON_RESPONSES, NOT_FOUND_ERROR
 from app.core.cache import invalidate_user_cache
 from app.core.db import get_supabase
 from app.core.errors import NotFoundError
+from app.core.logging_config import get_logger
 from app.services.shorts_extractor import extract_shorts
 from app.services.youtube_comment_autopilot import (
     ChannelTone,
@@ -21,6 +22,8 @@ from app.services.youtube_comment_autopilot import (
 from app.services.youtube_trigger import subscribe_to_channel
 from app.services.ytboost_distributor import DistributionResult, YtBoostDistributor
 from app.workers.comment_worker import learn_channel_tone_task
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ytboost", tags=["YtBoost"], responses=COMMON_RESPONSES)
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
@@ -385,12 +388,41 @@ async def extract_video_shorts(
     req: ExtractShortsRequest,
     user: CurrentUser,
 ) -> ShortsListResponse:
+    transcript = req.transcript or []
+    video_metadata = dict(req.video_metadata or {})
+
+    # Auto-fetch transcript when not provided
+    if not transcript:
+        try:
+            from app.services.youtube_transcript import (
+                fetch_transcript,
+                get_video_duration,
+            )
+
+            transcript = fetch_transcript(req.video_id)
+
+            if "duration_seconds" not in video_metadata:
+                video_metadata["duration_seconds"] = get_video_duration(transcript)
+
+            logger.info(
+                "transcript_auto_fetched",
+                video_id=req.video_id,
+                segment_count=len(transcript),
+            )
+        except Exception as exc:
+            logger.warning(
+                "transcript_auto_fetch_failed",
+                video_id=req.video_id,
+                error=str(exc),
+            )
+            transcript = []
+
     rows = await extract_shorts(
         req.video_id,
         user.id,
         req.source_channel_id,
-        transcript=req.transcript,
-        video_metadata=req.video_metadata,
+        transcript=transcript,
+        video_metadata=video_metadata,
     )
     await invalidate_user_cache(user.id)
     return ShortsListResponse(
