@@ -97,15 +97,16 @@ def _compute_expires_at(expires_in: int | None) -> str | None:
 
 def _load_account_row(account_id: str, owner_id: str) -> dict:
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("social_accounts")
         .select("*")
         .eq("id", account_id)
         .eq("owner_id", owner_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    row = result.data
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise NotFoundError("SocialAccount", account_id)
     return row

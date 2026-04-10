@@ -91,10 +91,12 @@ async def _get_key_for_user(key_id: str, user_id: str, workspace_id: str | None 
     query = sb.table("api_keys").select("*").eq("id", key_id).eq("user_id", user_id)
     if workspace_id is not None:
         query = query.eq("workspace_id", workspace_id)
-    result = query.maybe_single().execute()
-    if not result.data:
+    response = query.limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    result = rows[0] if rows else None
+    if not result:
         raise NotFoundError("API Key", key_id)
-    return result.data
+    return result
 
 
 @router.post(

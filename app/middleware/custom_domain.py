@@ -24,14 +24,15 @@ def resolve_workspace_by_host(host: str) -> dict | None:
     if not normalized:
         return None
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("workspaces")
         .select("*")
         .eq("custom_domain", normalized)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 def verify_custom_domain_record(domain: str, token: str) -> bool:

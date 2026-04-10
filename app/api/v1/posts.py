@@ -228,8 +228,9 @@ async def _get_post(post_id: str, owner_id: str, workspace_id: str | None) -> di
     query = sb.table("posts").select("*").eq("id", post_id).eq("owner_id", owner_id)
     if workspace_id is not None:
         query = query.eq("workspace_id", workspace_id)
-    post_result = query.maybe_single().execute()
-    post = post_result.data
+    post_response = query.limit(1).execute()
+    _post_rows = getattr(post_response, "data", None) or []
+    post = _post_rows[0] if _post_rows else None
     if not post:
         raise NotFoundError("Post", post_id)
 

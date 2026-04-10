@@ -130,16 +130,17 @@ def _sanitize_social_account(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _get_notification_preferences(sb, user_id: str) -> dict[str, Any]:
-    result = (
+    response = (
         sb.table("notification_preferences")
         .select(
             "product_updates, billing, security, monthly_summary, webhook_alerts",
         )
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data or {}
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else {}
 
 
 def _upsert_notification_preferences(sb, user_id: str, updates: dict[str, Any]) -> None:
@@ -478,18 +479,20 @@ async def request_deletion(
     """Request account deletion with 14-day grace period."""
     sb = get_supabase()
 
-    existing = (
+    response = (
         sb.table("deletion_requests")
         .select("id, status, scheduled_for")
         .eq("user_id", user.id)
         .eq("status", "pending")
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if existing.data:
+    rows = getattr(response, "data", None) or []
+    existing = rows[0] if rows else None
+    if existing:
         return DeletionResponse(
             message="Deletion already scheduled",
-            scheduled_for=existing.data["scheduled_for"],
+            scheduled_for=existing["scheduled_for"],
         )
 
     scheduled_for = datetime.now(UTC) + timedelta(days=GRACE_PERIOD_DAYS)
@@ -513,14 +516,9 @@ async def request_deletion(
         "status": "deletion_pending",
     }).eq("owner_id", user.id).execute()
 
-    subscription_row = (
-        sb.table("users")
-        .select("stripe_subscription_id")
-        .eq("id", user.id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("users").select("stripe_subscription_id").eq("id", user.id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    subscription_row = rows[0] if rows else None
     if subscription_row and subscription_row.get("stripe_subscription_id"):
         try:
             await cancel_subscription(user.id)
@@ -554,20 +552,22 @@ async def cancel_deletion(
     """Cancel a pending deletion request within the grace period."""
     sb = get_supabase()
 
-    existing = (
+    response = (
         sb.table("deletion_requests")
         .select("id")
         .eq("user_id", user.id)
         .eq("status", "pending")
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not existing.data:
+    rows = getattr(response, "data", None) or []
+    existing = rows[0] if rows else None
+    if not existing:
         raise NotFoundError("deletion_request", user.id)
 
     sb.table("deletion_requests").update({
         "status": "cancelled",
-    }).eq("id", existing.data["id"]).execute()
+    }).eq("id", existing["id"]).execute()
 
     sb.table("users").update({
         "is_active": True,
@@ -685,20 +685,22 @@ async def object_processing(
         )
 
     for purpose in body.purposes:
-        existing = (
+        response = (
             sb.table("consents")
             .select("id")
             .eq("user_id", user.id)
             .eq("purpose", purpose)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
+        rows = getattr(response, "data", None) or []
+        existing = rows[0] if rows else None
         now_iso = _now_iso()
-        if existing.data:
+        if existing:
             sb.table("consents").update({
                 "granted": False,
                 "revoked_at": now_iso,
-            }).eq("id", existing.data["id"]).execute()
+            }).eq("id", existing["id"]).execute()
         else:
             sb.table("consents").insert({
                 "user_id": user.id,

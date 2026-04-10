@@ -136,10 +136,12 @@ async def _get_video(video_id: str, owner_id: str, workspace_id: str | None) -> 
     query = sb.table("video_jobs").select("*").eq("id", video_id).eq("owner_id", owner_id)
     if workspace_id is not None:
         query = query.eq("workspace_id", workspace_id)
-    result = query.maybe_single().execute()
-    if not result.data:
+    response = query.limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    result_data = rows[0] if rows else None
+    if not result_data:
         raise NotFoundError("Video job", video_id)
-    return result.data
+    return result_data
 
 
 async def _enqueue_video_generation(video_id: str, owner_id: str) -> None:
@@ -304,18 +306,20 @@ async def get_template_detail(template_id: str, user: CurrentUser) -> TemplateRe
         return TemplateResponse(**builtin.to_dict())
 
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("video_templates")
         .select("*")
         .eq("id", template_id)
         .eq("owner_id", user.id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not result.data:
+    rows = getattr(response, "data", None) or []
+    result_data = rows[0] if rows else None
+    if not result_data:
         raise NotFoundError("Video template", template_id)
 
-    return _custom_row_to_response(result.data)
+    return _custom_row_to_response(result_data)
 
 
 @router.post(

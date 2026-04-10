@@ -188,15 +188,9 @@ class YouTubeCommentAutopilot:
     async def get_stored_tone(self, channel_id: str, user_id: str) -> ChannelTone | None:
         """Load previously learned tone from DB, if any."""
         sb = get_supabase()
-        row = (
-            sb.table("ytboost_channel_tones")
-            .select("*")
-            .eq("user_id", user_id)
-            .eq("youtube_channel_id", channel_id)
-            .maybe_single()
-            .execute()
-            .data
-        )
+        response = sb.table("ytboost_channel_tones").select("*").eq("user_id", user_id).eq("youtube_channel_id", channel_id).limit(1).execute()
+        rows = getattr(response, "data", None) or []
+        row = rows[0] if rows else None
         if not row:
             return None
         profile = row.get("tone_profile") or {}
@@ -223,25 +217,13 @@ class YouTubeCommentAutopilot:
         sb = get_supabase()
         account = None
         if account_id:
-            account = (
-                sb.table("social_accounts")
-                .select("id")
-                .eq("id", account_id)
-                .eq("owner_id", user_id)
-                .maybe_single()
-                .execute()
-                .data
-            )
+            response = sb.table("social_accounts").select("id").eq("id", account_id).eq("owner_id", user_id).limit(1).execute()
+            rows = getattr(response, "data", None) or []
+            account = rows[0] if rows else None
         if account is None:
-            account = (
-                sb.table("social_accounts")
-                .select("id")
-                .eq("owner_id", user_id)
-                .eq("platform", "youtube")
-                .maybe_single()
-                .execute()
-                .data
-            )
+            response = sb.table("social_accounts").select("id").eq("owner_id", user_id).eq("platform", "youtube").limit(1).execute()
+            rows = getattr(response, "data", None) or []
+            account = rows[0] if rows else None
         if not account:
             return {"collected": 0, "prepared": 0, "replied": 0}
 
@@ -309,39 +291,21 @@ class YouTubeCommentAutopilot:
     ) -> dict[str, Any]:
         """Send an approved or edited reply to YouTube."""
         sb = get_supabase()
-        comment = (
-            sb.table("comments")
-            .select("*")
-            .eq("id", comment_id)
-            .eq("user_id", user_id)
-            .maybe_single()
-            .execute()
-            .data
-        )
+        response = sb.table("comments").select("*").eq("id", comment_id).eq("user_id", user_id).limit(1).execute()
+        rows = getattr(response, "data", None) or []
+        comment = rows[0] if rows else None
         if not comment:
             return {"success": False, "error": "Comment not found"}
 
         account = None
         if account_id:
-            account = (
-                sb.table("social_accounts")
-                .select("id")
-                .eq("id", account_id)
-                .eq("owner_id", user_id)
-                .maybe_single()
-                .execute()
-                .data
-            )
+            response = sb.table("social_accounts").select("id").eq("id", account_id).eq("owner_id", user_id).limit(1).execute()
+            rows = getattr(response, "data", None) or []
+            account = rows[0] if rows else None
         if account is None:
-            account = (
-                sb.table("social_accounts")
-                .select("id")
-                .eq("owner_id", user_id)
-                .eq("platform", "youtube")
-                .maybe_single()
-                .execute()
-                .data
-            )
+            response = sb.table("social_accounts").select("id").eq("owner_id", user_id).eq("platform", "youtube").limit(1).execute()
+            rows = getattr(response, "data", None) or []
+            account = rows[0] if rows else None
         if not account:
             return {"success": False, "error": "YouTube account not found"}
 

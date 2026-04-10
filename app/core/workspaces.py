@@ -11,16 +11,18 @@ WORKSPACE_ROLES = {"owner", "admin", "editor", "viewer"}
 def get_workspace_record(workspace_id: str) -> dict:
     """Return a workspace row or raise NotFoundError."""
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("workspaces")
         .select("*")
         .eq("id", workspace_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not result.data:
+    rows = getattr(response, "data", None) or []
+    result_data = rows[0] if rows else None
+    if not result_data:
         raise NotFoundError("Workspace", workspace_id)
-    return result.data
+    return result_data
 
 
 def get_workspace_access(workspace_id: str, user_id: str) -> tuple[dict, str]:
@@ -30,15 +32,16 @@ def get_workspace_access(workspace_id: str, user_id: str) -> tuple[dict, str]:
         return workspace, "owner"
 
     sb = get_supabase()
-    membership = (
+    _mem_response = (
         sb.table("workspace_members")
         .select("role")
         .eq("workspace_id", workspace_id)
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    _mem_rows = getattr(_mem_response, "data", None) or []
+    membership = _mem_rows[0] if _mem_rows else None
     if not membership:
         raise ForbiddenError("Workspace access denied")
     return workspace, membership.get("role", "viewer")

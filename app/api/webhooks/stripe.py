@@ -36,14 +36,15 @@ def _verify_signature(payload: bytes, sig_header: str) -> Any:
 
 def _find_user_by_customer(customer_id: str) -> dict | None:
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("users")
         .select("id, plan")
         .eq("stripe_customer_id", customer_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return result.data
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 def _handle_checkout_completed(session: dict) -> None:

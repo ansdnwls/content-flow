@@ -43,16 +43,18 @@ def _validate_timezone(value: str) -> str:
 
 def _load_profile(user: AuthenticatedUser) -> UserProfile:
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("users")
         .select("id, email, full_name, plan, language, timezone")
         .eq("id", user.id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not result.data:
+    rows = getattr(response, "data", None) or []
+    result = rows[0] if rows else None
+    if not result:
         return UserProfile(id=user.id, email=user.email, plan=user.plan)
-    return UserProfile(**result.data)
+    return UserProfile(**result)
 
 
 @router.get("/me", response_model=UserProfile)

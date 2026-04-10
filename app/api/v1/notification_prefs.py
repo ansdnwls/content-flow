@@ -47,15 +47,16 @@ class UpdatePreferencesRequest(BaseModel):
 
 def _get_or_create_prefs(user_id: str) -> dict:
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("notification_preferences")
         .select("*")
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if result.data:
-        return result.data
+    rows = getattr(response, "data", None) or []
+    if rows:
+        return rows[0]
 
     row = {"user_id": user_id, **DEFAULT_PREFS}
     return sb.table("notification_preferences").insert(row).execute().data[0]

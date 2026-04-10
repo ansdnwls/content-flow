@@ -158,20 +158,22 @@ async def sign_dpa(
 async def get_signed_dpa(user: CurrentUser) -> DPASignedResponse:
     """Return the user's signed DPA details."""
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("dpa_signatures")
         .select("dpa_version, signer_name, company, signed_at, pdf_url")
         .eq("user_id", user.id)
         .order("signed_at", desc=True)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not result.data:
+    rows = getattr(response, "data", None) or []
+    result = rows[0] if rows else None
+    if not result:
         from app.core.errors import NotFoundError
 
         raise NotFoundError("dpa_signature", user.id)
 
-    return DPASignedResponse(**result.data)
+    return DPASignedResponse(**result)
 
 
 @router.get(

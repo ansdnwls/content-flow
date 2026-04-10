@@ -77,14 +77,16 @@ def notify_affected_users(breach_id: str) -> int:
         "status": "users_notified",
     }).eq("id", breach_id).execute()
 
-    breach = (
+    _breach_response = (
         sb.table("data_breaches")
         .select("affected_user_count")
         .eq("id", breach_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    return breach.data["affected_user_count"] if breach.data else 0
+    _breach_rows = getattr(_breach_response, "data", None) or []
+    breach_data = _breach_rows[0] if _breach_rows else None
+    return breach_data["affected_user_count"] if breach_data else 0
 
 
 def notify_authority(breach_id: str) -> dict[str, Any]:
@@ -95,14 +97,16 @@ def notify_authority(breach_id: str) -> dict[str, Any]:
     sb = get_supabase()
     now_iso = datetime.now(UTC).isoformat()
 
-    breach_data = (
+    _bd_response = (
         sb.table("data_breaches")
         .select("*")
         .eq("id", breach_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not breach_data.data:
+    _bd_rows = getattr(_bd_response, "data", None) or []
+    breach_record = _bd_rows[0] if _bd_rows else None
+    if not breach_record:
         return {"error": "Breach not found"}
 
     sb.table("data_breaches").update({
@@ -110,7 +114,7 @@ def notify_authority(breach_id: str) -> dict[str, Any]:
         "status": "authority_notified",
     }).eq("id", breach_id).execute()
 
-    breach = breach_data.data
+    breach = breach_record
     return {
         "breach_id": breach_id,
         "severity": breach["severity"],

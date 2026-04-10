@@ -44,16 +44,17 @@ class ReplayResponse(BaseModel):
 
 
 def _ensure_webhook_owned(webhook_id: str, owner_id: str) -> None:
-    webhook = (
+    response = (
         get_supabase()
         .table("webhooks")
         .select("id")
         .eq("id", webhook_id)
         .eq("owner_id", owner_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    webhook = rows[0] if rows else None
     if not webhook:
         raise NotFoundError("Webhook", webhook_id)
 

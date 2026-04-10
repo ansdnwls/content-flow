@@ -128,14 +128,15 @@ async def list_users(
 @router.get("/users/{user_id}", response_model=UserDetail, summary="Get User Detail")
 async def get_user_detail(user_id: str, admin: AdminUser) -> UserDetail:
     sb = get_supabase()
-    user_result = (
+    response = (
         sb.table("users")
         .select("id, email, full_name, plan, is_active, created_at")
         .eq("id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    user = user_result.data
+    rows = getattr(response, "data", None) or []
+    user = rows[0] if rows else None
     if not user:
         from app.core.errors import NotFoundError
 
@@ -172,8 +173,9 @@ async def change_user_plan(
     admin: AdminUser,
 ) -> PlanChangeResponse:
     sb = get_supabase()
-    user_result = sb.table("users").select("id, plan").eq("id", user_id).maybe_single().execute()
-    user = user_result.data
+    response = sb.table("users").select("id, plan").eq("id", user_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    user = rows[0] if rows else None
     if not user:
         from app.core.errors import NotFoundError
 
@@ -196,10 +198,11 @@ async def suspend_user(
     admin: AdminUser,
 ) -> dict[str, Any]:
     sb = get_supabase()
-    user_result = (
-        sb.table("users").select("id, is_active").eq("id", user_id).maybe_single().execute()
+    response = (
+        sb.table("users").select("id, is_active").eq("id", user_id).limit(1).execute()
     )
-    user = user_result.data
+    rows = getattr(response, "data", None) or []
+    user = rows[0] if rows else None
     if not user:
         from app.core.errors import NotFoundError
 

@@ -129,14 +129,9 @@ async def list_products(
 async def get_product(product_id: str, user: CurrentUser) -> dict:
     """Fetch a single ShopSync product."""
     sb = get_supabase()
-    row = (
-        sb.table("shopsync_products")
-        .select("*")
-        .eq("id", product_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("shopsync_products").select("*").eq("id", product_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise HTTPException(status_code=404, detail="Product not found")
     if row["user_id"] != user.id:
@@ -160,14 +155,9 @@ async def publish_product(
     from app.services.shopsync_publisher import ShopsyncPublisher
 
     sb = get_supabase()
-    row = (
-        sb.table("shopsync_products")
-        .select("*")
-        .eq("id", product_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("shopsync_products").select("*").eq("id", product_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise HTTPException(status_code=404, detail="Product not found")
     if row["user_id"] != user.id:
@@ -222,14 +212,9 @@ async def publish_product(
 async def delete_product(product_id: str, user: CurrentUser) -> Response:
     """Delete a ShopSync product."""
     sb = get_supabase()
-    row = (
-        sb.table("shopsync_products")
-        .select("id, user_id")
-        .eq("id", product_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("shopsync_products").select("id, user_id").eq("id", product_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise HTTPException(status_code=404, detail="Product not found")
     if row["user_id"] != user.id:
@@ -316,14 +301,9 @@ async def bulk_import_products(file: UploadFile, user: CurrentUser) -> dict:
 async def get_bulk_import_status(job_id: str, user: CurrentUser) -> dict:
     """Get bulk import job progress."""
     sb = get_supabase()
-    row = (
-        sb.table("shopsync_bulk_jobs")
-        .select("*")
-        .eq("id", job_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("shopsync_bulk_jobs").select("*").eq("id", job_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
     if row["user_id"] != user.id:

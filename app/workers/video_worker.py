@@ -170,15 +170,16 @@ async def _auto_publish_video(video_job: dict, output_url: str) -> dict | None:
 
 async def _load_video_job(video_id: str, owner_id: str) -> dict:
     sb = get_supabase()
-    row = (
+    response = (
         sb.table("video_jobs")
         .select("*")
         .eq("id", video_id)
         .eq("owner_id", owner_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise NotFoundError("Video job", video_id)
     return row

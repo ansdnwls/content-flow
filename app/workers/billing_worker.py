@@ -37,14 +37,15 @@ async def _check_past_due_subscriptions() -> int:
             continue
         seen_users.add(user_id)
 
-        user = (
+        response = (
             sb.table("users")
             .select("id, plan, subscription_status")
             .eq("id", user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
-            .data
         )
+        rows = getattr(response, "data", None) or []
+        user = rows[0] if rows else None
         if not user or user.get("subscription_status") != "past_due":
             continue
         if user["plan"] == "free":

@@ -17,14 +17,15 @@ DEFAULT_BRANDING = {
 def get_workspace_branding(workspace_id: str) -> dict:
     """Return the workspace branding merged with defaults."""
     sb = get_supabase()
-    workspace = (
+    response = (
         sb.table("workspaces")
         .select("id, name, branding, support_email")
         .eq("id", workspace_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    workspace = rows[0] if rows else None
     if not workspace:
         return dict(DEFAULT_BRANDING)
 

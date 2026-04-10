@@ -14,36 +14,24 @@ from app.workers.celery_app import celery_app
 async def run_bomb_transform(bomb_id: str, user_id: str) -> dict:
     sb = get_supabase()
     sb.table("bombs").update({"status": "transforming"}).eq("id", bomb_id).execute()
-    bomb = (
-        sb.table("bombs")
-        .select("id, topic")
-        .eq("id", bomb_id)
-        .eq("user_id", user_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("bombs").select("id, topic").eq("id", bomb_id).eq("user_id", user_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    bomb = rows[0] if rows else None
     transformer = ContentTransformer()
     platform_contents = await transformer.transform_topic(bomb["topic"])
     sb.table("bombs").update(
         {"status": "ready", "platform_contents": platform_contents},
     ).eq("id", bomb_id).execute()
-    return (
-        sb.table("bombs").select("*").eq("id", bomb_id).maybe_single().execute().data
-    )
+    response = sb.table("bombs").select("*").eq("id", bomb_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 async def run_bomb_publish(bomb_id: str, user_id: str) -> dict:
     sb = get_supabase()
-    bomb = (
-        sb.table("bombs")
-        .select("*")
-        .eq("id", bomb_id)
-        .eq("user_id", user_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    response = sb.table("bombs").select("*").eq("id", bomb_id).eq("user_id", user_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    bomb = rows[0] if rows else None
     contents = bomb.get("platform_contents") or {}
     updated_contents = {}
     for platform, content in contents.items():
@@ -60,9 +48,9 @@ async def run_bomb_publish(bomb_id: str, user_id: str) -> dict:
         "post.published",
         {"bomb_id": bomb_id, "platforms": list(updated_contents)},
     )
-    return (
-        sb.table("bombs").select("*").eq("id", bomb_id).maybe_single().execute().data
-    )
+    response = sb.table("bombs").select("*").eq("id", bomb_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    return rows[0] if rows else None
 
 
 @celery_app.task(name="contentflow.transform_bomb")

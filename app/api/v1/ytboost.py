@@ -196,32 +196,34 @@ def _distribution_response(result: DistributionResult) -> DistributionResponse:
 
 
 def _load_owned_channel(channel_id: str, user_id: str) -> dict[str, Any]:
-    row = (
+    response = (
         get_supabase()
         .table("ytboost_subscriptions")
         .select("*")
         .eq("id", channel_id)
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise NotFoundError("YtBoost channel", channel_id)
     return row
 
 
 def _load_owned_short(short_id: str, user_id: str) -> dict[str, Any]:
-    row = (
+    response = (
         get_supabase()
         .table("ytboost_shorts")
         .select("*")
         .eq("id", short_id)
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    row = rows[0] if rows else None
     if not row:
         raise NotFoundError("YtBoost short", short_id)
     return row
@@ -412,16 +414,17 @@ async def approve_short(
     if short_row["status"] == "rejected":
         raise HTTPException(status_code=409, detail="Rejected shorts cannot be approved")
 
-    subscription = (
+    response = (
         get_supabase()
         .table("ytboost_subscriptions")
         .select("*")
         .eq("user_id", user.id)
         .eq("youtube_channel_id", short_row["source_channel_id"])
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    subscription = rows[0] if rows else None
     target_platforms = req.target_platforms
     if target_platforms is None and subscription:
         target_platforms = list(subscription.get("target_platforms") or [])

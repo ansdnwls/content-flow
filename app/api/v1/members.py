@@ -41,7 +41,9 @@ class MemberListResponse(BaseModel):
 
 def _user_or_404(user_id: str) -> dict:
     sb = get_supabase()
-    user = sb.table("users").select("id, email").eq("id", user_id).maybe_single().execute().data
+    response = sb.table("users").select("id, email").eq("id", user_id).limit(1).execute()
+    rows = getattr(response, "data", None) or []
+    user = rows[0] if rows else None
     if not user:
         raise NotFoundError("User", user_id)
     return user
@@ -62,15 +64,16 @@ async def invite_member(
     require_workspace_role(workspace_id, user.id, allowed_roles={"owner"})
     invitee = _user_or_404(req.user_id)
     sb = get_supabase()
-    existing = (
+    response = (
         sb.table("workspace_members")
         .select("*")
         .eq("workspace_id", workspace_id)
         .eq("user_id", req.user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    existing = rows[0] if rows else None
     if existing:
         updated = (
             sb.table("workspace_members")
@@ -168,15 +171,16 @@ async def update_member(
 ) -> MemberResponse:
     require_workspace_role(workspace_id, user.id, allowed_roles={"owner"})
     sb = get_supabase()
-    membership = (
+    response = (
         sb.table("workspace_members")
         .select("*")
         .eq("workspace_id", workspace_id)
         .eq("user_id", member_user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    membership = rows[0] if rows else None
     if not membership:
         raise NotFoundError("Workspace member", member_user_id)
     updated = (
@@ -212,15 +216,16 @@ async def remove_member(
         raise ForbiddenError("Cannot remove the workspace owner")
 
     sb = get_supabase()
-    membership = (
+    response = (
         sb.table("workspace_members")
         .select("*")
         .eq("workspace_id", workspace_id)
         .eq("user_id", member_user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    membership = rows[0] if rows else None
     if not membership:
         raise NotFoundError("Workspace member", member_user_id)
     sb.table("workspace_members").delete().eq("id", membership["id"]).execute()

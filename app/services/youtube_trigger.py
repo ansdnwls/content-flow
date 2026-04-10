@@ -89,28 +89,30 @@ def parse_youtube_notification(xml_payload: str) -> list[YouTubeVideoNotificatio
 def is_known_video(user_id: str, video_id: str) -> bool:
     """Best-effort dedup based on extracted shorts and prior audit events."""
     sb = get_supabase()
-    existing_short = (
+    _short_response = (
         sb.table("ytboost_shorts")
         .select("id")
         .eq("user_id", user_id)
         .eq("source_video_id", video_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    _short_rows = getattr(_short_response, "data", None) or []
+    existing_short = _short_rows[0] if _short_rows else None
     if existing_short:
         return True
 
-    existing_audit = (
+    _audit_response = (
         sb.table("audit_logs")
         .select("id")
         .eq("user_id", user_id)
         .eq("action", "ytboost.youtube_video_detected")
         .eq("resource", f"youtube_videos/{video_id}")
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    _audit_rows = getattr(_audit_response, "data", None) or []
+    existing_audit = _audit_rows[0] if _audit_rows else None
     return existing_audit is not None
 
 

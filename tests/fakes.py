@@ -78,6 +78,11 @@ class FakeQuery:
         self.order_desc = desc
         return self
 
+    def limit(self, count: int) -> FakeQuery:
+        self.range_start = 0
+        self.range_end = count - 1
+        return self
+
     def range(self, start: int, end: int) -> FakeQuery:
         self.range_start = start
         self.range_end = end

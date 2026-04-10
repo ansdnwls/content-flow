@@ -116,15 +116,17 @@ def _ensure_essential_consent(
     ip: str | None = None,
     user_agent: str | None = None,
 ) -> None:
-    existing = (
+    response = (
         sb.table("consents")
         .select("id")
         .eq("user_id", user_id)
         .eq("purpose", "essential")
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if existing.data:
+    rows = getattr(response, "data", None) or []
+    existing = rows[0] if rows else None
+    if existing:
         return
 
     sb.table("consents").insert({
@@ -203,16 +205,18 @@ async def grant_consent(
         if purpose == "essential":
             continue
 
-        existing = (
+        response = (
             sb.table("consents")
             .select("id")
             .eq("user_id", user.id)
             .eq("purpose", purpose)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
+        rows = getattr(response, "data", None) or []
+        existing = rows[0] if rows else None
 
-        if existing.data:
+        if existing:
             sb.table("consents").update({
                 "granted": True,
                 "granted_at": now_iso,
@@ -220,7 +224,7 @@ async def grant_consent(
                 "ip": client_ip,
                 "user_agent": ua,
                 "version": CURRENT_CONSENT_VERSION,
-            }).eq("id", existing.data["id"]).execute()
+            }).eq("id", existing["id"]).execute()
         else:
             sb.table("consents").insert({
                 "user_id": user.id,
@@ -269,21 +273,23 @@ async def revoke_consent(
         if purpose == "essential":
             continue
 
-        existing = (
+        response = (
             sb.table("consents")
             .select("id")
             .eq("user_id", user.id)
             .eq("purpose", purpose)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
+        rows = getattr(response, "data", None) or []
+        existing = rows[0] if rows else None
 
-        if existing.data:
+        if existing:
             sb.table("consents").update({
                 "granted": False,
                 "revoked_at": now_iso,
                 "version": CURRENT_CONSENT_VERSION,
-            }).eq("id", existing.data["id"]).execute()
+            }).eq("id", existing["id"]).execute()
         else:
             sb.table("consents").insert({
                 "user_id": user.id,

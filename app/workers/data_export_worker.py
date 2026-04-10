@@ -38,14 +38,15 @@ async def run_user_data_export(
             sb=sb,
         )
 
-        user = (
+        response = (
             sb.table("users")
             .select("email, full_name")
             .eq("id", user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
-            .data
-        ) or {}
+        )
+        rows = getattr(response, "data", None) or []
+        user = rows[0] if rows else {}
 
         download_url = build_download_url(
             export_id,

@@ -55,15 +55,16 @@ async def get_admin_user(
     row: dict | None = None
     cached_api_key_id = await get_cached_api_key_id(redis, admin_key, namespace="admin")
     if cached_api_key_id:
-        row = (
+        _response = (
             sb.table("api_keys")
             .select("id, user_id")
             .eq("id", cached_api_key_id)
             .eq("is_active", True)
-            .maybe_single()
+            .limit(1)
             .execute()
-            .data
         )
+        _rows = getattr(_response, "data", None) or []
+        row = _rows[0] if _rows else None
         if not row:
             await invalidate_cached_api_key(redis, admin_key, namespace="admin")
 
@@ -94,14 +95,15 @@ async def get_admin_user(
 
     await _touch_last_used(sb, redis, row["id"])
 
-    user_result = (
+    user_response = (
         sb.table("users")
         .select("id, email, plan")
         .eq("id", row["user_id"])
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    user = user_result.data
+    _user_rows = getattr(user_response, "data", None) or []
+    user = _user_rows[0] if _user_rows else None
     if not user:
         raise AuthenticationError("Admin user not found for API key")
 

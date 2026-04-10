@@ -118,14 +118,15 @@ async def create_workspace(req: WorkspaceCreateRequest, user: CurrentUser) -> Wo
         .data[0]
     )
 
-    user_row = (
+    response = (
         sb.table("users")
         .select("default_workspace_id")
         .eq("id", user.id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    user_row = rows[0] if rows else None
     if user_row and user_row.get("default_workspace_id") is None:
         (
             sb.table("users")

@@ -28,14 +28,15 @@ def _month_key(now: datetime | None = None) -> str:
 
 def _get_or_create_preferences(user_id: str) -> dict[str, Any]:
     sb = get_supabase()
-    prefs = (
+    response = (
         sb.table("notification_preferences")
         .select("*")
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    rows = getattr(response, "data", None) or []
+    prefs = rows[0] if rows else None
     if prefs:
         return prefs
     return sb.table("notification_preferences").insert(

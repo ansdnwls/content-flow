@@ -73,17 +73,19 @@ async def _create_bomb(user: AuthenticatedUser, topic: str) -> dict:
 
 async def _get_bomb(bomb_id: str, user_id: str) -> dict:
     sb = get_supabase()
-    result = (
+    response = (
         sb.table("bombs")
         .select("*")
         .eq("id", bomb_id)
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if not result.data:
+    rows = getattr(response, "data", None) or []
+    result = rows[0] if rows else None
+    if not result:
         raise NotFoundError("Bomb", bomb_id)
-    return result.data
+    return result
 
 
 async def _enqueue_bomb_transform(bomb_id: str, user_id: str) -> None:

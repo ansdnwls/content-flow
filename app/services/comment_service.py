@@ -178,15 +178,16 @@ class CommentService:
     ) -> dict[str, Any]:
         """Generate an AI reply and post it to the platform."""
         sb = get_supabase()
-        comment = (
+        _comment_response = (
             sb.table("comments")
             .select("*")
             .eq("id", comment_id)
             .eq("user_id", user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
-            .data
         )
+        _comment_rows = getattr(_comment_response, "data", None) or []
+        comment = _comment_rows[0] if _comment_rows else None
         if not comment:
             return {"success": False, "error": "Comment not found"}
 
@@ -260,12 +261,13 @@ class CommentService:
     async def get_comment(self, comment_id: str, user_id: str) -> dict | None:
         """Get a single comment by ID."""
         sb = get_supabase()
-        result = (
+        response = (
             sb.table("comments")
             .select("*")
             .eq("id", comment_id)
             .eq("user_id", user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        return result.data
+        rows = getattr(response, "data", None) or []
+        return rows[0] if rows else None

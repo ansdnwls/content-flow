@@ -30,15 +30,16 @@ async def verify_youtube_webhook(
     hub_challenge: str = Query(..., alias="hub.challenge"),
     hub_mode: str | None = Query(default=None, alias="hub.mode"),
 ) -> PlainTextResponse:
-    subscription = (
+    _sub_response = (
         get_supabase()
         .table("ytboost_subscriptions")
         .select("id")
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
-        .data
     )
+    _sub_rows = getattr(_sub_response, "data", None) or []
+    subscription = _sub_rows[0] if _sub_rows else None
     if not subscription:
         raise HTTPException(
             status_code=404,
@@ -70,15 +71,16 @@ async def youtube_webhook(
     duplicates = 0
 
     for notification in notifications:
-        subscription = (
+        _nsub_response = (
             sb.table("ytboost_subscriptions")
             .select("*")
             .eq("user_id", user_id)
             .eq("youtube_channel_id", notification.channel_id)
-            .maybe_single()
+            .limit(1)
             .execute()
-            .data
         )
+        _nsub_rows = getattr(_nsub_response, "data", None) or []
+        subscription = _nsub_rows[0] if _nsub_rows else None
         if not subscription:
             continue
         if is_known_video(user_id, notification.video_id):
