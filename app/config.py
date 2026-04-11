@@ -67,6 +67,17 @@ class Settings(BaseSettings):
         alias="YT_FACTORY_POLL_INTERVAL_SECONDS",
     )
 
+    # Sheets → YouTube auto-upload polling
+    yt_upload_account_id: str | None = Field(
+        default=None, alias="YT_UPLOAD_ACCOUNT_ID",
+    )
+    yt_upload_owner_id: str | None = Field(
+        default=None, alias="YT_UPLOAD_OWNER_ID",
+    )
+    sheets_poll_interval_seconds: float = Field(
+        default=300.0, alias="SHEETS_POLL_INTERVAL_SECONDS",
+    )
+
     # Google (YouTube + Google Business)
     google_client_id: str | None = Field(default=None, alias="GOOGLE_CLIENT_ID")
     google_client_secret: str | None = Field(default=None, alias="GOOGLE_CLIENT_SECRET")
@@ -96,6 +107,14 @@ class Settings(BaseSettings):
         default="http://localhost:8000/api/v1/accounts/callback/naver_blog",
         alias="NAVER_REDIRECT_URI",
     )
+    naver_blog_id: str | None = Field(
+        default=None,
+        alias="NAVER_BLOG_ID",
+    )
+    naver_session_path: str = Field(
+        default="C:/Users/y2k_w/naver-session.json",
+        alias="NAVER_SESSION_PATH",
+    )
 
     # Naver Commerce (SmartStore)
     naver_commerce_client_id: str | None = Field(
@@ -122,7 +141,7 @@ class Settings(BaseSettings):
         default=None, alias="COUPANG_VENDOR_ID",
     )
 
-    # Google Sheets (?�비??계정)
+    # Google Sheets (?�비??계정)
     google_service_account_json_path: str | None = Field(
         default=None, alias="GOOGLE_SERVICE_ACCOUNT_JSON_PATH",
     )
