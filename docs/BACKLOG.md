@@ -138,6 +138,18 @@
 - test_bombs.py 실패 수정
 
 **난이도**: 하 **재사용**: 높음 (공통 유틸) **예상 시간**: 1시간
+### ~~B08. Claude JSON 응답 파싱 통일~~ ✅ 완료 (2026-04-11)
+
+### B09. Sentry 테스트 업데이트
+
+**설명**: `test_observability.py::test_sentry_init_calls_sdk_when_dsn_present`가 
+Celery + Redis integration 추가 후 업데이트 안 됨
+
+**난이도**: 하
+**예상 시간**: 5분
+**전제조건**: 없음
+**우선순위 메모**: 배포 영향 없음. 나중에 정리.
+
 
 ---
 
