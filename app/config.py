@@ -83,6 +83,20 @@ class Settings(BaseSettings):
     x_client_id: str | None = Field(default=None, alias="X_CLIENT_ID")
     x_client_secret: str | None = Field(default=None, alias="X_CLIENT_SECRET")
 
+    # Naver Blog
+    naver_client_id: str | None = Field(
+        default=None,
+        alias="NAVER_CLIENT_ID",
+    )
+    naver_client_secret: str | None = Field(
+        default=None,
+        alias="NAVER_CLIENT_SECRET",
+    )
+    naver_redirect_uri: str = Field(
+        default="http://localhost:8000/api/v1/accounts/callback/naver_blog",
+        alias="NAVER_REDIRECT_URI",
+    )
+
     # Naver Commerce (SmartStore)
     naver_commerce_client_id: str | None = Field(
         default=None,
@@ -108,7 +122,7 @@ class Settings(BaseSettings):
         default=None, alias="COUPANG_VENDOR_ID",
     )
 
-    # Google Sheets (서비스 계정)
+    # Google Sheets (?�비??계정)
     google_service_account_json_path: str | None = Field(
         default=None, alias="GOOGLE_SERVICE_ACCOUNT_JSON_PATH",
     )
@@ -215,3 +229,4 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+

@@ -146,7 +146,7 @@ async def oauth_callback(
     token_expires_at = None
     if token_resp.expires_in:
         token_expires_at = (
-            datetime.now(UTC) + timedelta(seconds=token_resp.expires_in)
+            datetime.now(UTC) + timedelta(seconds=int(token_resp.expires_in))
         ).isoformat()
 
     # Save encrypted tokens
@@ -224,3 +224,4 @@ async def disconnect_account(account_id: str, user: CurrentUser) -> AccountRespo
         token_expires_at=row.get("token_expires_at"),
         metadata=row.get("metadata", {}),
     )
+
