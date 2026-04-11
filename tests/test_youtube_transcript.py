@@ -1,7 +1,8 @@
 """Tests for YouTube transcript extraction service."""
 from __future__ import annotations
 
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,6 +12,11 @@ from app.services.youtube_transcript import (
     fetch_transcript,
     get_video_duration,
 )
+
+
+def _make_snippet(text: str, start: float, duration: float) -> SimpleNamespace:
+    """Create a mock FetchedTranscriptSnippet object."""
+    return SimpleNamespace(text=text, start=start, duration=duration)
 
 
 class TestExtractVideoId:
@@ -53,14 +59,17 @@ class TestExtractVideoId:
 
 
 class TestFetchTranscript:
-    """Test transcript fetching with mocked API."""
+    """Test transcript fetching with mocked API (youtube-transcript-api 1.x)."""
 
     @patch("app.services.youtube_transcript.YouTubeTranscriptApi")
-    def test_successful_fetch(self, mock_api):
-        mock_api.get_transcript.return_value = [
-            {"start": 0.0, "duration": 5.5, "text": "Hello world"},
-            {"start": 5.5, "duration": 4.2, "text": "This is a test"},
+    def test_successful_fetch(self, mock_api_cls):
+        # 1.x API: YouTubeTranscriptApi() 인스턴스 생성 후 .fetch() 호출
+        mock_instance = MagicMock()
+        mock_instance.fetch.return_value = [
+            _make_snippet("Hello world", 0.0, 5.5),
+            _make_snippet("This is a test", 5.5, 4.2),
         ]
+        mock_api_cls.return_value = mock_instance
 
         result = fetch_transcript("xQR5-Nk9N6o")
 
@@ -69,46 +78,54 @@ class TestFetchTranscript:
         assert result[1] == {"start": 5, "end": 9, "text": "This is a test"}
 
     @patch("app.services.youtube_transcript.YouTubeTranscriptApi")
-    def test_transcripts_disabled(self, mock_api):
+    def test_transcripts_disabled(self, mock_api_cls):
         from youtube_transcript_api._errors import TranscriptsDisabled
 
-        mock_api.get_transcript.side_effect = TranscriptsDisabled("test_id")
+        mock_instance = MagicMock()
+        mock_instance.fetch.side_effect = TranscriptsDisabled("test")
+        mock_api_cls.return_value = mock_instance
 
         with pytest.raises(TranscriptError, match="disabled"):
             fetch_transcript("xQR5-Nk9N6o")
 
     @patch("app.services.youtube_transcript.YouTubeTranscriptApi")
-    def test_no_transcript_found(self, mock_api):
+    def test_no_transcript_found(self, mock_api_cls):
         from youtube_transcript_api._errors import NoTranscriptFound
 
-        mock_api.get_transcript.side_effect = NoTranscriptFound(
+        mock_instance = MagicMock()
+        mock_instance.fetch.side_effect = NoTranscriptFound(
             "xQR5-Nk9N6o", ["ko"], {}
         )
+        mock_api_cls.return_value = mock_instance
 
         with pytest.raises(TranscriptError, match="No transcript found"):
             fetch_transcript("xQR5-Nk9N6o")
 
     @patch("app.services.youtube_transcript.YouTubeTranscriptApi")
-    def test_accepts_url(self, mock_api):
-        mock_api.get_transcript.return_value = [
-            {"start": 0.0, "duration": 1.0, "text": "test"},
+    def test_accepts_url(self, mock_api_cls):
+        mock_instance = MagicMock()
+        mock_instance.fetch.return_value = [
+            _make_snippet("test", 0.0, 1.0),
         ]
+        mock_api_cls.return_value = mock_instance
 
         result = fetch_transcript("https://youtu.be/xQR5-Nk9N6o")
 
         assert len(result) == 1
-        mock_api.get_transcript.assert_called_once_with(
+        mock_instance.fetch.assert_called_once_with(
             "xQR5-Nk9N6o",
             languages=["ko", "en"],
         )
 
     @patch("app.services.youtube_transcript.YouTubeTranscriptApi")
-    def test_custom_languages(self, mock_api):
-        mock_api.get_transcript.return_value = []
+    def test_custom_languages(self, mock_api_cls):
+        mock_instance = MagicMock()
+        mock_instance.fetch.return_value = []
+        mock_api_cls.return_value = mock_instance
 
         fetch_transcript("xQR5-Nk9N6o", languages=["ja", "en"])
 
-        mock_api.get_transcript.assert_called_once_with(
+        mock_instance.fetch.assert_called_once_with(
             "xQR5-Nk9N6o",
             languages=["ja", "en"],
         )
