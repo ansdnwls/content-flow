@@ -121,14 +121,15 @@ class ContentTransformer:
             )
             response.raise_for_status()
             payload = response.json()
-            text_parts = [
-                part["text"]
-                for part in payload.get("content", [])
-                if part.get("type") == "text"
-            ]
-            if not text_parts:
+            from app.core.claude_utils import extract_claude_text, parse_claude_json
+
+            text = extract_claude_text(payload)
+            if not text:
                 return {}
-            return json.loads("".join(text_parts))
+            try:
+                return parse_claude_json(text)
+            except json.JSONDecodeError:
+                return {}
 
     @staticmethod
     def _build_prompt(topic: str) -> str:

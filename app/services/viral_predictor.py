@@ -135,12 +135,10 @@ class ViralPredictor:
             )
             response.raise_for_status()
             payload = response.json()
-            text_parts = [
-                p["text"]
-                for p in payload.get("content", [])
-                if p.get("type") == "text"
-            ]
-            return json.loads("".join(text_parts))
+            from app.core.claude_utils import extract_claude_text, parse_claude_json
+
+            text = extract_claude_text(payload)
+            return parse_claude_json(text)
 
     async def _predict_with_claude(
         self,

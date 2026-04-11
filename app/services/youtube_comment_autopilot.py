@@ -83,13 +83,10 @@ async def _analyze_tone_with_claude(replies: list[str]) -> dict[str, Any]:
         )
         response.raise_for_status()
         payload = response.json()
-        text_parts = [
-            p["text"]
-            for p in payload.get("content", [])
-            if p.get("type") == "text"
-        ]
-        raw_text = "".join(text_parts).strip()
-        return json.loads(raw_text)
+        from app.core.claude_utils import extract_claude_text, parse_claude_json
+
+        text = extract_claude_text(payload)
+        return parse_claude_json(text)
 
 
 async def list_recent_video_ids(channel_id: str, *, access_token: str) -> list[str]:

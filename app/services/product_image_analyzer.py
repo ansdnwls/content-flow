@@ -101,11 +101,11 @@ async def analyze_product(
         )
         resp.raise_for_status()
 
-    data = resp.json()
-    text_block = data["content"][0]["text"]
+    from app.core.claude_utils import extract_claude_text, parse_claude_json
 
-    import json
-    parsed = json.loads(text_block)
+    data = resp.json()
+    text = extract_claude_text(data)
+    parsed = parse_claude_json(text)
 
     return ProductAnalysis(
         product_name=parsed.get("product_name", product_name),

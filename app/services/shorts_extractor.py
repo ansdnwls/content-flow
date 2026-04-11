@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from app.config import get_settings
+from app.core.claude_utils import strip_markdown_code_fence as _strip_markdown_code_fence
 from app.core.db import get_supabase
 
 
@@ -81,21 +82,6 @@ def _fallback_segments(duration_seconds: int) -> list[ShortClip]:
         )
     return clips
 
-
-def _strip_markdown_code_fence(text: str) -> str:
-    """Remove ```json ... ``` or ``` ... ``` wrappers from Claude responses."""
-    stripped = text.strip()
-    if not stripped.startswith("```"):
-        return stripped
-    lines = stripped.split("\n")
-    if len(lines) < 2:
-        return stripped
-    # Remove first line (```json or ```)
-    lines = lines[1:]
-    # Remove last line if it's ```
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
 
 
 def _normalize_hashtags(value: Any) -> list[str]:

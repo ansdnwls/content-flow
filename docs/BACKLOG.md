@@ -128,6 +128,19 @@
 
 ---
 
+### ~~B08. Claude JSON 응답 파싱 통일~~ ✅ 완료 (2026-04-11)
+
+**설명**: Claude API 응답이 마크다운 코드펜스로 감싸질 때 JSONDecodeError 발생하는 문제를 코드베이스 전체에서 통일 처리
+
+**상세**:
+- `app/core/claude_utils.py` 공통 모듈 생성
+- 5개 서비스 파일 리팩토링 (content_transformer, product_image_analyzer, viral_predictor, youtube_comment_autopilot, shorts_extractor)
+- test_bombs.py 실패 수정
+
+**난이도**: 하 **재사용**: 높음 (공통 유틸) **예상 시간**: 1시간
+
+---
+
 ## 🏆 제안 우선순위 (Claude 의견)
 
 1. **B07** (자막 추출) — 모든 것의 전제조건, 쉬움
