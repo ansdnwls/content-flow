@@ -5,10 +5,13 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import respx
+from httpx import Response
 
 from app.services.sheets_to_youtube_uploader import (
     SheetsToYoutubeUploader,
     UploadResult,
+    _guess_thumbnail_suffix,
 )
 
 
@@ -241,6 +244,37 @@ class TestUploadJob:
 
         assert result.success  # thumbnail failure is non-fatal
 
+    @pytest.mark.asyncio
+    async def test_thumbnail_download_failure_non_fatal(self):
+        from app.services.google_drive import DriveError
+
+        mock_drive = MagicMock()
+        mock_drive.get_file_metadata.return_value = {
+            "name": "thumb.jpg",
+            "mimeType": "image/jpeg",
+        }
+        mock_drive.download_file.side_effect = [
+            Path("/tmp/fake.mp4"),
+            DriveError("thumb download error"),
+        ]
+        mock_sheets = MagicMock()
+        uploader = _make_uploader(mock_sheets=mock_sheets, mock_drive=mock_drive)
+
+        with patch.object(
+            uploader, "_upload_to_youtube", new_callable=AsyncMock,
+            return_value=("yt-vid", "https://youtu.be/yt-vid"),
+        ), patch.object(
+            uploader, "_set_thumbnail", new_callable=AsyncMock,
+        ) as mock_thumb, patch(
+            "app.services.sheets_to_youtube_uploader.get_valid_credentials",
+            new_callable=AsyncMock,
+            return_value={"access_token": "tok"},
+        ):
+            result = await uploader.upload_job(_sample_job())
+
+        assert result.success
+        mock_thumb.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # UploadResult dataclass
@@ -263,3 +297,31 @@ class TestUploadResult:
         r = UploadResult(job_id="j1", success=False, error="something broke")
         assert not r.success
         assert r.youtube_url is None
+
+
+class TestThumbnailHelpers:
+    def test_guess_thumbnail_suffix_png(self):
+        assert _guess_thumbnail_suffix({"mimeType": "image/png"}) == ".png"
+
+    def test_guess_thumbnail_suffix_name_fallback(self):
+        assert _guess_thumbnail_suffix({"name": "thumb.jpeg"}) == ".jpeg"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_set_thumbnail_uses_png_content_type(self):
+        uploader = _make_uploader()
+        route = respx.post(
+            "https://www.googleapis.com/upload/youtube/v3/thumbnails/set",
+            params={"videoId": "video-123"},
+        ).mock(return_value=Response(200, json={}))
+
+        png_path = Path("thumb.png")
+        with patch.object(Path, "read_bytes", return_value=b"png-bytes"):
+            await uploader._set_thumbnail(
+                "video-123",
+                png_path,
+                {"access_token": "tok"},
+            )
+
+        assert route.called
+        assert route.calls.last.request.headers["Content-Type"] == "image/png"

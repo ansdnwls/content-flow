@@ -18,6 +18,23 @@ from app.services.google_sheets import GoogleSheetsClient, GoogleSheetsError
 logger = get_logger(__name__)
 
 
+def _guess_thumbnail_suffix(metadata: dict[str, Any] | None) -> str:
+    """Infer a safe local file suffix for a downloaded thumbnail."""
+    if not metadata:
+        return ".jpg"
+
+    mime_type = str(metadata.get("mimeType") or "").lower()
+    if mime_type == "image/png":
+        return ".png"
+
+    name = str(metadata.get("name") or "").lower()
+    if name.endswith(".png"):
+        return ".png"
+    if name.endswith(".jpeg"):
+        return ".jpeg"
+    return ".jpg"
+
+
 @dataclass(frozen=True)
 class UploadResult:
     """Result of a YouTube upload attempt."""
@@ -107,7 +124,9 @@ class SheetsToYoutubeUploader:
             thumb_file_id = job.get("thumb_file_id")
             if thumb_file_id:
                 try:
-                    thumb_path = Path(tmp_dir) / f"{job_id}_thumb.jpg"
+                    thumb_metadata = self.drive.get_file_metadata(thumb_file_id)
+                    thumb_suffix = _guess_thumbnail_suffix(thumb_metadata)
+                    thumb_path = Path(tmp_dir) / f"{job_id}_thumb{thumb_suffix}"
                     self.drive.download_file(thumb_file_id, thumb_path)
                 except DriveError as exc:
                     logger.warning("thumb_download_failed", job_id=job_id, error=str(exc))
@@ -260,7 +279,12 @@ class SheetsToYoutubeUploader:
         access_token = credentials["access_token"]
         thumb_bytes = thumb_path.read_bytes()
         suffix = thumb_path.suffix.lower()
-        content_type = "image/png" if suffix == ".png" else "image/jpeg"
+        content_type_map = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+        }
+        content_type = content_type_map.get(suffix, "image/jpeg")
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
             resp = await client.post(

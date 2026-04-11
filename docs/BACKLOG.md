@@ -165,6 +165,22 @@ Celery + Redis integration 추가 후 업데이트 안 됨
 
 ---
 
+### ~~B16. 썸네일 업로드 검증~~ 완료 (2026-04-12)
+
+**설명**: B11에서 구현한 `_set_thumbnail()`의 실제 동작을 READY_UPLOAD 실데이터로 검증.
+
+**검증 결과**:
+- Queue job `fc4db088-c6e7-400e-8661-e959f8b90df9`를 private으로 실제 업로드
+- YouTube video `cOFZ2fmSnuM` 생성, `thumbnail_set_success` 로그 확인
+- YouTube Data API에서 `privacyStatus=private`, `uploadStatus=processed`, `maxres` thumbnail 확인
+- 썸네일 없는 READY_UPLOAD 잡은 계속 스킵 가능, 썸네일 업로드 실패도 non-fatal 유지
+
+**후속 보강**:
+- Drive metadata 기준으로 썸네일 파일 suffix 보존 (`.png` 대응)
+- 테스트 추가: thumbnail download failure non-fatal, png Content-Type 검증
+
+---
+
 ## 🏆 제안 우선순위 (Claude 의견)
 
 1. **B07** (자막 추출) — 모든 것의 전제조건, 쉬움
