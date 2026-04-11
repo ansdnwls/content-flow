@@ -46,7 +46,7 @@ async def get_next_job(user: CurrentUser) -> NextJobResponse:
         owner_id=user.id,
     )
 
-    job = uploader.find_next_job()
+    job = uploader.find_next_job(job_id=body.job_id)
     if not job:
         return NextJobResponse(found=False)
 
@@ -60,6 +60,7 @@ async def get_next_job(user: CurrentUser) -> NextJobResponse:
 
 class UploadNextRequest(BaseModel):
     youtube_account_id: str
+    job_id: str | None = None
 
 
 @router.post("/upload-next", response_model=UploadResponse)
@@ -79,7 +80,7 @@ async def upload_next_job(
         owner_id=user.id,
     )
 
-    job = uploader.find_next_job()
+    job = uploader.find_next_job(job_id=body.job_id)
     if not job:
         raise HTTPException(404, "No READY_UPLOAD jobs")
 
@@ -92,3 +93,5 @@ async def upload_next_job(
         youtube_video_id=result.youtube_video_id,
         error=result.error,
     )
+
+

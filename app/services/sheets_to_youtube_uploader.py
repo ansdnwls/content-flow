@@ -44,8 +44,12 @@ class SheetsToYoutubeUploader:
         self.sheets = GoogleSheetsClient()
         self.drive = GoogleDriveClient()
 
-    def find_next_job(self) -> dict[str, Any] | None:
+    def find_next_job(self, job_id: str | None = None) -> dict[str, Any] | None:
         """Find the oldest READY_UPLOAD job from Sheets.
+
+        Args:
+            job_id: If provided, find this specific job (must be READY_UPLOAD).
+                    If None, find the oldest job with a valid drive_file_id.
 
         Returns:
             Job dict or None if no job is available.
@@ -53,7 +57,15 @@ class SheetsToYoutubeUploader:
         jobs = self.sheets.read_jobs_by_status(self.sheet_id, "READY_UPLOAD")
         if not jobs:
             return None
-        return jobs[0]
+        if job_id:
+            matched = [j for j in jobs if j.get("job_id") == job_id]
+            return matched[0] if matched else None
+        valid = [
+            j for j in jobs
+            if j.get("drive_file_id")
+            and not str(j.get("drive_file_id", "")).startswith("MOCK_")
+        ]
+        return valid[0] if valid else None
 
     async def upload_job(self, job: dict[str, Any]) -> UploadResult:
         """Execute full upload flow for a single job.
@@ -265,3 +277,4 @@ class SheetsToYoutubeUploader:
                     f"Thumbnail upload failed ({resp.status_code}): {resp.text}"
                 )
             logger.info("thumbnail_set_success", video_id=video_id)
+

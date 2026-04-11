@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /c/Users/y2k_w/projects/content-flow && git add app/services/youtube_transcript.py app/api/v1/ytboost.py tests/test_youtube_transcript.py pyproject.toml docs/SESSION_STATE.md docs/BACKL...",
-  "error": "Exit code 1\nwarning: in the working copy of 'docs/BACKLOG.md', LF will be replaced by CRLF the next time Git touches it\nThe following paths are ignored by one of your .gitignore files:\ndocs/SESSION_STATE.md\nhint: Use -f if you really want to add them.\nhint: Disable this message with \"git config set advice.addIgnoredFile false\"\n\nwarning: in the working copy of 'docs/BACKLOG.md', LF will be replaced by CRLF the next time Git touches it\nThe following paths are ignored by one of your .gitignore file...",
-  "timestamp": "2026-04-10T23:37:58.457Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"cd /c/Users/y2k_w/projects/content-flow && .venv/Scripts/python -m pytest tests/test_google_sheets.py tests/test_sheets_to_youtube_uploader.py tests/test_google_drive.py tests/test_claude_...",
+  "error": "Exit code 4\nERROR: file or directory not found: tests/test_sentry.py\r\n\r\n\r\nno tests ran in 0.00s\r\n\nERROR: file or directory not found: tests/test_sentry.py\r\n\r\n\r\nno tests ran in 0.00s",
+  "timestamp": "2026-04-11T18:07:48.051Z",
+  "retry_count": 2
 }
