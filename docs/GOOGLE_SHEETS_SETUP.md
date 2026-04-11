@@ -91,6 +91,30 @@ Row 2: ['abc123', 'My Video', 'done', ...]
 
 ---
 
+## Drive 파일 접근 설정
+
+ContentFlow가 yt-factory가 Drive에 올린 영상/자막 파일을 다운로드하려면
+Drive 폴더에도 서비스 계정 공유 권한이 필요합니다.
+
+### 방법 1: 폴더 전체 공유 (권장)
+1. yt-factory가 사용하는 Drive 루트 폴더 열기
+   - 채널별 폴더: DRIVE_FOLDER_CH001, CH002, CH003 등
+2. 각 폴더 우클릭 → "공유"
+3. 서비스 계정 이메일 추가 (뷰어 권한)
+4. 하위 폴더/파일에 자동 전파됨
+
+### 방법 2: 개별 파일 공유
+- 파일별로 공유하는 건 비효율적
+- 방법 1 권장
+
+### Drive 연결 확인
+```powershell
+$env:GOOGLE_DRIVE_TEST_FILE_ID = "여기에_Drive_파일_ID"
+python scripts/test_drive_connection.py
+```
+
+---
+
 ## 참고: Sheet ID 찾는 법
 
 Google Sheets URL:
