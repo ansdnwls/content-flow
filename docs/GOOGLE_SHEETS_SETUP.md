@@ -123,3 +123,23 @@ https://docs.google.com/spreadsheets/d/THIS_IS_THE_SHEET_ID/edit
 ```
 
 `/d/` 와 `/edit` 사이의 문자열이 Sheet ID.
+
+---
+
+## 권한 업데이트 (B11 이후)
+
+B11부터 ContentFlow가 Sheets에 쓰기도 합니다 (업로드 완료 상태 기록).
+
+### 변경 사항
+- 기존: **뷰어** (읽기만)
+- 신규: **편집자** (읽기 + 쓰기)
+
+### 설정
+1. yt-factory Google Sheets 열기
+2. **공유** 설정에서 ContentFlow 서비스 계정 찾기
+3. 권한을 "뷰어"에서 **"편집자"**로 변경
+
+### .env 추가
+```
+YT_FACTORY_SHEET_ID=여기에_시트_ID
+```

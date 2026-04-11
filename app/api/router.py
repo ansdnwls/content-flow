@@ -21,6 +21,7 @@ from app.api.v1 import (
     predict,
     privacy,
     schedules,
+    sheets_upload,
     shopsync,
     trending,
     usage,
@@ -62,3 +63,4 @@ api_router.include_router(users.router)
 api_router.include_router(ytboost.router)
 api_router.include_router(ytboost_analytics.router)
 api_router.include_router(shopsync.router)
+api_router.include_router(sheets_upload.router)

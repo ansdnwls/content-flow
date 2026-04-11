@@ -1,4 +1,4 @@
-"""Google Sheets read-only client using service account authentication."""
+"""Google Sheets client using service account authentication."""
 from __future__ import annotations
 
 import json
@@ -14,7 +14,7 @@ from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
 class GoogleSheetsError(Exception):
@@ -24,7 +24,7 @@ class GoogleSheetsError(Exception):
 
 
 class GoogleSheetsClient:
-    """Read-only Google Sheets client using service account credentials.
+    """Google Sheets client using service account credentials.
 
     Authentication priority:
     1. GOOGLE_SERVICE_ACCOUNT_JSON_PATH — path to JSON key file
@@ -252,3 +252,93 @@ class GoogleSheetsClient:
         """
         all_rows = self.read_queue_rows(sheet_id, sheet_name)
         return [row for row in all_rows if row.get("status") == status]
+
+    # ------------------------------------------------------------------
+    # Write helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _col_letter(col: int) -> str:
+        """Convert 1-based column number to letter(s). 1=A, 26=Z, 27=AA."""
+        result = ""
+        while col > 0:
+            col, remainder = divmod(col - 1, 26)
+            result = chr(65 + remainder) + result
+        return result
+
+    def update_cell(
+        self,
+        sheet_id: str,
+        sheet_name: str,
+        row: int,
+        col: int,
+        value: Any,
+    ) -> None:
+        """Update a single cell by row/col (both 1-based).
+
+        Args:
+            sheet_id: Google Sheets document ID.
+            sheet_name: Tab name (e.g. "Queue").
+            row: 1-based row number.
+            col: 1-based column number.
+            value: Value to write.
+        """
+        range_a1 = f"{sheet_name}!{self._col_letter(col)}{row}"
+        try:
+            self._service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=range_a1,
+                valueInputOption="USER_ENTERED",
+                body={"values": [[value]]},
+            ).execute()
+            logger.info(
+                "sheets_cell_updated",
+                sheet_id=sheet_id,
+                range=range_a1,
+                value=str(value)[:50],
+            )
+        except HttpError as exc:
+            logger.error(
+                "sheets_cell_update_failed",
+                sheet_id=sheet_id,
+                range=range_a1,
+                error=str(exc),
+            )
+            raise GoogleSheetsError(f"Failed to update cell: {exc}") from exc
+
+    def update_job_fields(
+        self,
+        sheet_id: str,
+        job_id: str,
+        updates: dict[str, Any],
+        sheet_name: str = "Queue",
+    ) -> None:
+        """Update multiple fields for a job identified by job_id.
+
+        Uses ``YT_FACTORY_COL_MAP`` to locate columns.
+
+        Args:
+            sheet_id: Google Sheets document ID.
+            job_id: Target job_id value in the Queue sheet.
+            updates: Mapping of field_name -> new value.
+            sheet_name: Tab name (default "Queue").
+
+        Raises:
+            GoogleSheetsError: If the job is not found or an API call fails.
+        """
+        all_rows = self.read_queue_rows(sheet_id, sheet_name)
+        target_row_idx: int | None = None
+        for idx, row in enumerate(all_rows):
+            if row.get("job_id") == job_id:
+                target_row_idx = idx + 1  # 1-based, no header row
+                break
+
+        if target_row_idx is None:
+            raise GoogleSheetsError(f"Job not found: {job_id}")
+
+        for field, value in updates.items():
+            if field not in self.YT_FACTORY_COL_MAP:
+                logger.warning("unknown_field_skipped", field=field)
+                continue
+            col_idx = self.YT_FACTORY_COL_MAP[field] + 1  # 0-based -> 1-based
+            self.update_cell(sheet_id, sheet_name, target_row_idx, col_idx, value)

@@ -115,6 +115,9 @@ class Settings(BaseSettings):
     google_service_account_json: str | None = Field(
         default=None, alias="GOOGLE_SERVICE_ACCOUNT_JSON",
     )
+    yt_factory_sheet_id: str | None = Field(
+        default=None, alias="YT_FACTORY_SHEET_ID",
+    )
 
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     comment_poll_interval_seconds: int = Field(

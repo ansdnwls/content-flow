@@ -312,3 +312,110 @@ class TestReadJobsByStatus:
         result = client.read_jobs_by_status("sheet-id", "READY_UPLOAD")
 
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# _col_letter
+# ---------------------------------------------------------------------------
+
+class TestColLetter:
+    """Test column number to letter conversion."""
+
+    def test_single_letter(self):
+        assert GoogleSheetsClient._col_letter(1) == "A"
+        assert GoogleSheetsClient._col_letter(26) == "Z"
+
+    def test_double_letter(self):
+        assert GoogleSheetsClient._col_letter(27) == "AA"
+        assert GoogleSheetsClient._col_letter(28) == "AB"
+        assert GoogleSheetsClient._col_letter(52) == "AZ"
+        assert GoogleSheetsClient._col_letter(53) == "BA"
+
+    def test_triple_letter(self):
+        assert GoogleSheetsClient._col_letter(703) == "AAA"
+
+
+# ---------------------------------------------------------------------------
+# update_cell
+# ---------------------------------------------------------------------------
+
+def _mock_values_update(mock_service: MagicMock) -> MagicMock:
+    """Wire up mock for spreadsheets().values().update().execute()."""
+    mock_update = MagicMock()
+    mock_service.spreadsheets.return_value.values.return_value.update.return_value.execute = mock_update
+    return mock_update
+
+
+class TestUpdateCell:
+    """Test single cell update."""
+
+    def test_success(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_update(mock_service)
+
+        client.update_cell("sheet-id", "Queue", 3, 8, "DONE")
+
+        mock_service.spreadsheets.return_value.values.return_value.update.assert_called_once_with(
+            spreadsheetId="sheet-id",
+            range="Queue!H3",
+            valueInputOption="USER_ENTERED",
+            body={"values": [["DONE"]]},
+        )
+
+    def test_http_error_raises(self):
+        from googleapiclient.errors import HttpError
+
+        client, mock_service = _build_client_with_mock_service()
+        resp = MagicMock(status=500)
+        mock_service.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect = HttpError(
+            resp, b"Server Error",
+        )
+
+        with pytest.raises(GoogleSheetsError, match="Failed to update cell"):
+            client.update_cell("sheet-id", "Queue", 1, 1, "val")
+
+
+# ---------------------------------------------------------------------------
+# update_job_fields
+# ---------------------------------------------------------------------------
+
+class TestUpdateJobFields:
+    """Test multi-field job update."""
+
+    def test_updates_multiple_fields(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {
+            "values": [
+                _make_queue_row("job-001", "READY_UPLOAD"),
+                _make_queue_row("job-002", "DONE"),
+            ]
+        })
+        _mock_values_update(mock_service)
+
+        client.update_job_fields("sheet-id", "job-001", {
+            "status": "DONE",
+            "youtube_video_id": "yt-abc",
+        })
+
+        calls = mock_service.spreadsheets.return_value.values.return_value.update.call_args_list
+        assert len(calls) == 2
+
+    def test_job_not_found_raises(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {"values": [_make_queue_row("job-001")]})
+
+        with pytest.raises(GoogleSheetsError, match="Job not found"):
+            client.update_job_fields("sheet-id", "nonexistent", {"status": "DONE"})
+
+    def test_unknown_field_skipped(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {"values": [_make_queue_row("job-001")]})
+        _mock_values_update(mock_service)
+
+        client.update_job_fields("sheet-id", "job-001", {
+            "status": "DONE",
+            "nonexistent_field": "ignored",
+        })
+
+        calls = mock_service.spreadsheets.return_value.values.return_value.update.call_args_list
+        assert len(calls) == 1  # only status updated
