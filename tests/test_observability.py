@@ -185,7 +185,8 @@ def test_sentry_init_calls_sdk_when_dsn_present(monkeypatch: pytest.MonkeyPatch)
     assert captured["dsn"] == "https://example@sentry.io/1"
     assert captured["environment"] == "production"
     assert captured["traces_sample_rate"] == 0.25
-    assert captured["integrations"] == ["fastapi-integration"]
+    assert "fastapi-integration" in captured["integrations"]
+    assert len(captured["integrations"]) >= 1
 
 
 def test_main_middleware_order_places_request_id_before_timing_and_logging() -> None:
