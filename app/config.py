@@ -108,6 +108,14 @@ class Settings(BaseSettings):
         default=None, alias="COUPANG_VENDOR_ID",
     )
 
+    # Google Sheets (서비스 계정)
+    google_service_account_json_path: str | None = Field(
+        default=None, alias="GOOGLE_SERVICE_ACCOUNT_JSON_PATH",
+    )
+    google_service_account_json: str | None = Field(
+        default=None, alias="GOOGLE_SERVICE_ACCOUNT_JSON",
+    )
+
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     comment_poll_interval_seconds: int = Field(
         default=300, alias="COMMENT_POLL_INTERVAL_SECONDS"

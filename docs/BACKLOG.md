@@ -151,6 +151,18 @@ Celery + Redis integration 추가 후 업데이트 안 됨
 **우선순위 메모**: 배포 영향 없음. 나중에 정리.
 
 
+### B10. Google Sheets 통합 기반 (Phase 1 - 읽기)
+
+**설명**: yt-factory가 기록하는 Google Sheets 작업 시트를 ContentFlow가 읽을 수 있는 기반 구축
+
+**상세**:
+- `app/services/google_sheets.py` — GoogleSheetsClient (서비스 계정 인증, read_sheet, read_sheet_as_dicts)
+- Settings에 GOOGLE_SERVICE_ACCOUNT_JSON_PATH / GOOGLE_SERVICE_ACCOUNT_JSON 추가
+- 읽기 전용. 쓰기/감시는 다음 단계.
+
+**난이도**: 하 **재사용**: 높음 (Sheets 연동 기반) **예상 시간**: 1~2시간
+**전제조건**: 없음 **우선순위 메모**: yt-factory ↔ ContentFlow 연결의 첫 단계.
+
 ---
 
 ## 🏆 제안 우선순위 (Claude 의견)
