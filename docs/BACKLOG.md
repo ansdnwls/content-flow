@@ -113,7 +113,7 @@
 
 ---
 
-### ~~B07. YouTube 자막 자동 추출~~ ✅ 완료 (2026-04-11)
+### B07. YouTube 자막 자동 추출
 
 **설명**: yt-dlp 또는 YouTube Caption API로 긴 영상 자막 자동 추출
 

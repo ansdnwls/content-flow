@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /c/Users/y2k_w/projects/content-flow && git push 2>&1\",\"description\":\"Push to remote\"}",
-  "error": "Exit code 1\nremote: error: GH013: Repository rule violations found for refs/heads/main.        \nremote: \nremote: - GITHUB PUSH PROTECTION        \nremote:   —————————————————————————————————————————        \nremote:     Resolve the following violations before pushing again        \nremote: \nremote:     - Push cannot contain secrets        \nremote: \nremote:             \nremote:      (?) Learn how to resolve a blocked push        \nremote:      https://docs.github.com/code-security/secret-scanning/wor...",
-  "timestamp": "2026-04-08T09:38:30.141Z",
-  "retry_count": 2
+  "tool_input_preview": "{\"command\":\"cd /c/Users/y2k_w/projects/content-flow && git add app/services/youtube_transcript.py app/api/v1/ytboost.py tests/test_youtube_transcript.py pyproject.toml docs/SESSION_STATE.md docs/BACKL...",
+  "error": "Exit code 1\nwarning: in the working copy of 'docs/BACKLOG.md', LF will be replaced by CRLF the next time Git touches it\nThe following paths are ignored by one of your .gitignore files:\ndocs/SESSION_STATE.md\nhint: Use -f if you really want to add them.\nhint: Disable this message with \"git config set advice.addIgnoredFile false\"\n\nwarning: in the working copy of 'docs/BACKLOG.md', LF will be replaced by CRLF the next time Git touches it\nThe following paths are ignored by one of your .gitignore file...",
+  "timestamp": "2026-04-10T23:37:58.457Z",
+  "retry_count": 1
 }
