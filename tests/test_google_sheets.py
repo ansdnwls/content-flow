@@ -197,3 +197,118 @@ class TestReadSheetAsDicts:
 
         with pytest.raises(GoogleSheetsError, match="no header"):
             client.read_sheet_as_dicts("sheet-id-123")
+
+
+# ---------------------------------------------------------------------------
+# yt-factory Queue helpers
+# ---------------------------------------------------------------------------
+
+def _make_queue_row(
+    job_id: str = "job-001",
+    status: str = "READY_UPLOAD",
+    title: str = "My Video",
+    drive_file_id: str = "drive-abc",
+) -> list[str]:
+    """Build a fake yt-factory Queue row (62 columns wide)."""
+    row = [""] * 62
+    col = GoogleSheetsClient.YT_FACTORY_COL_MAP
+    row[col["job_id"]] = job_id
+    row[col["channel_id"]] = "ch001"
+    row[col["status"]] = status
+    row[col["title"]] = title
+    row[col["drive_file_id"]] = drive_file_id
+    row[col["subtitle_ass_drive_id"]] = "ass-xyz"
+    return row
+
+
+class TestReadQueueRows:
+    """Test yt-factory Queue sheet reading."""
+
+    def test_maps_columns(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {
+            "values": [
+                _make_queue_row("job-001", "READY_UPLOAD", "Video One", "d1"),
+                _make_queue_row("job-002", "DONE", "Video Two", "d2"),
+            ]
+        })
+
+        result = client.read_queue_rows("sheet-id")
+
+        assert len(result) == 2
+        assert result[0]["job_id"] == "job-001"
+        assert result[0]["status"] == "READY_UPLOAD"
+        assert result[0]["title"] == "Video One"
+        assert result[0]["drive_file_id"] == "d1"
+        assert result[0]["subtitle_ass_drive_id"] == "ass-xyz"
+        assert result[1]["job_id"] == "job-002"
+
+    def test_skips_empty_rows(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {
+            "values": [
+                _make_queue_row("job-001"),
+                [],
+                [""],
+                _make_queue_row("job-002"),
+            ]
+        })
+
+        result = client.read_queue_rows("sheet-id")
+
+        assert len(result) == 2
+        assert result[0]["job_id"] == "job-001"
+        assert result[1]["job_id"] == "job-002"
+
+    def test_handles_short_rows(self):
+        client, mock_service = _build_client_with_mock_service()
+        # Row with only 10 columns (subtitle_ass_drive_id at idx 54 missing)
+        short_row = ["job-short", "ch001", "", "", "", "", "", "DONE", "", ""]
+        _mock_values_get(mock_service, {"values": [short_row]})
+
+        result = client.read_queue_rows("sheet-id")
+
+        assert len(result) == 1
+        assert result[0]["job_id"] == "job-short"
+        assert result[0]["status"] == "DONE"
+        assert result[0]["subtitle_ass_drive_id"] is None
+        assert result[0]["title"] is None
+
+    def test_empty_sheet(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {})
+
+        result = client.read_queue_rows("sheet-id")
+
+        assert result == []
+
+
+class TestReadJobsByStatus:
+    """Test status-based filtering."""
+
+    def test_filters_by_status(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {
+            "values": [
+                _make_queue_row("j1", "READY_UPLOAD"),
+                _make_queue_row("j2", "DONE"),
+                _make_queue_row("j3", "READY_UPLOAD"),
+                _make_queue_row("j4", "GENERATING"),
+            ]
+        })
+
+        result = client.read_jobs_by_status("sheet-id", "READY_UPLOAD")
+
+        assert len(result) == 2
+        assert result[0]["job_id"] == "j1"
+        assert result[1]["job_id"] == "j3"
+
+    def test_no_matches_returns_empty(self):
+        client, mock_service = _build_client_with_mock_service()
+        _mock_values_get(mock_service, {
+            "values": [_make_queue_row("j1", "DONE")]
+        })
+
+        result = client.read_jobs_by_status("sheet-id", "READY_UPLOAD")
+
+        assert result == []

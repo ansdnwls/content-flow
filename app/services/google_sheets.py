@@ -173,3 +173,82 @@ class GoogleSheetsClient:
             result.append(dict(zip(headers, padded, strict=False)))
 
         return result
+
+    # ------------------------------------------------------------------
+    # yt-factory Queue helpers
+    # ------------------------------------------------------------------
+
+    YT_FACTORY_COL_MAP: dict[str, int] = {
+        "job_id": 0,
+        "channel_id": 1,
+        "mode": 2,
+        "topic_seed": 3,
+        "aspect_ratio": 4,
+        "script_hash": 5,
+        "idempotency_key": 6,
+        "status": 7,
+        "title": 24,
+        "description": 25,
+        "tags": 26,
+        "publish_at": 27,
+        "drive_file_id": 31,
+        "thumb_file_id": 32,
+        "caption_file_id": 33,
+        "youtube_video_id": 34,
+        "youtube_url": 35,
+        "uploaded_at": 36,
+        "subtitle_ass_drive_id": 54,
+    }
+
+    def read_queue_rows(
+        self,
+        sheet_id: str,
+        sheet_name: str = "Queue",
+        *,
+        start_row: int = 1,
+        end_row: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Read yt-factory Queue sheet as a list of dicts.
+
+        The Queue sheet has no header row — data starts at row 1.
+        Column indices are mapped via ``YT_FACTORY_COL_MAP``.
+
+        Args:
+            sheet_id: Google Sheets document ID.
+            sheet_name: Sheet tab name (default "Queue").
+            start_row: First row to read (1-based, default 1).
+            end_row: Last row to read (default 1000).
+
+        Returns:
+            List of dicts with named fields. Empty rows are skipped.
+        """
+        range_a1 = f"{sheet_name}!A{start_row}:BJ{end_row}"
+        raw_rows = self.read_sheet(sheet_id, range_a1)
+
+        result: list[dict[str, Any]] = []
+        for row in raw_rows:
+            if not row or not row[0]:
+                continue
+            row_dict: dict[str, Any] = {}
+            for field, idx in self.YT_FACTORY_COL_MAP.items():
+                row_dict[field] = row[idx] if idx < len(row) else None
+            result.append(row_dict)
+
+        return result
+
+    def read_jobs_by_status(
+        self,
+        sheet_id: str,
+        status: str,
+        sheet_name: str = "Queue",
+    ) -> list[dict[str, Any]]:
+        """Filter yt-factory Queue rows by status.
+
+        Common statuses:
+        - READY_UPLOAD: video ready, awaiting distribution
+        - DONE: fully distributed
+        - READY_GENERATE: awaiting generation
+        - GENERATING: in progress
+        """
+        all_rows = self.read_queue_rows(sheet_id, sheet_name)
+        return [row for row in all_rows if row.get("status") == status]
