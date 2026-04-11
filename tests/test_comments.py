@@ -421,7 +421,7 @@ async def test_naver_blog_reply_comment_returns_todo_error() -> None:
         {"access_token": "tok"},
     )
     assert result.success is False
-    assert "TODO" in (result.error or "")
+    assert "not supported" in (result.error or "")
 
 
 async def test_tistory_get_comments_returns_empty_list() -> None:

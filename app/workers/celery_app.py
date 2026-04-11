@@ -39,6 +39,7 @@ celery_app.conf.update(
         "app.workers.scheduler",
         "app.workers.shopsync_bulk_worker",
         "app.workers.onboarding_worker",
+        "app.workers.sheets_upload_worker",
     ),
     beat_schedule={
         "schedule-due-posts-every-minute": {
@@ -84,6 +85,10 @@ celery_app.conf.update(
         "send-onboarding-emails-every-30-minutes": {
             "task": "contentflow.send_onboarding_emails",
             "schedule": 1800.0,
+        },
+        "poll-sheets-and-upload-video": {
+            "task": "contentflow.poll_sheets_and_upload",
+            "schedule": float(settings.sheets_poll_interval_seconds),
         },
     },
 )
