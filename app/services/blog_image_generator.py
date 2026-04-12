@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -25,6 +26,26 @@ _PROMPT_SYSTEM = (
     "suitable for a high-quality blog illustration. "
     "Return ONLY a JSON array of 2 strings, no markdown, no explanation. "
     'Example: ["prompt one", "prompt two"]'
+)
+
+_STRUCTURED_SYSTEM = (
+    "You are a Korean blog content architect. Given a title and raw text, "
+    "produce a structured blog post as a JSON array of content blocks.\n"
+    "Available block types:\n"
+    '  {"type":"heading2","text":"..."}\n'
+    '  {"type":"heading3","text":"..."}\n'
+    '  {"type":"paragraph","text":"..."}\n'
+    '  {"type":"image","prompt":"English image prompt for AI generation"}\n'
+    '  {"type":"quote","text":"..."}\n'
+    '  {"type":"divider"}\n'
+    "Rules:\n"
+    "- Write all text content in Korean\n"
+    "- Include 2-3 heading2 sections\n"
+    "- Include 2-3 image blocks with English prompts\n"
+    "- Include at least 1 quote block\n"
+    "- Use dividers between major sections\n"
+    "- Paragraphs should be 2-4 sentences each\n"
+    "- Return ONLY the JSON array, no markdown fences"
 )
 
 _POLLINATIONS_BASE = "https://image.pollinations.ai/prompt"
@@ -144,3 +165,96 @@ async def generate_blog_images(
 
     logger.info("blog_images_ready", count=len(images), total_prompts=len(prompts))
     return images
+
+
+# ---------------------------------------------------------------------------
+# Structured content generation
+# ---------------------------------------------------------------------------
+
+
+async def generate_structured_content(
+    title: str,
+    text: str,
+    *,
+    max_text_chars: int = 1500,
+) -> list[dict[str, Any]]:
+    """Use Claude to generate structured blog content blocks.
+
+    Returns a list of content block dicts.  Image blocks contain a
+    ``prompt`` key whose value is rendered via pollinations.ai and
+    replaced with a ``url`` key pointing to the downloaded file.
+
+    Returns an empty list on failure (non-fatal).
+    """
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        logger.warning("structured_content_skip_no_api_key")
+        return []
+
+    user_msg = (
+        f"Blog title: {title}\n\n"
+        f"Raw content:\n{text[:max_text_chars]}"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                f"{settings.anthropic_api_base_url.rstrip('/')}/messages",
+                headers={
+                    "x-api-key": settings.anthropic_api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": settings.anthropic_model,
+                    "max_tokens": 2000,
+                    "system": _STRUCTURED_SYSTEM,
+                    "messages": [{"role": "user", "content": user_msg}],
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        raw = data["content"][0]["text"].strip()
+        # Strip markdown fences if Claude adds them anyway
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+        if raw.endswith("```"):
+            raw = raw.rsplit("```", 1)[0]
+        blocks: list[dict[str, Any]] = json.loads(raw.strip())
+        if not isinstance(blocks, list):
+            return []
+
+        logger.info("structured_content_generated", block_count=len(blocks))
+    except Exception as exc:
+        logger.warning("structured_content_failed", error=str(exc))
+        return []
+
+    # Render image prompts via pollinations.ai
+    temp_dir = Path(tempfile.mkdtemp(prefix="struct_img_"))
+    img_idx = 0
+    rendered_blocks: list[dict[str, Any]] = []
+
+    for block in blocks:
+        if block.get("type") == "image" and block.get("prompt"):
+            dest = temp_dir / f"struct_img_{img_idx}.jpg"
+            result = await download_pollinations_image(block["prompt"], dest)
+            if result:
+                rendered_blocks.append({
+                    "type": "image",
+                    "url": str(result),
+                    "caption": block.get("caption", ""),
+                })
+                img_idx += 1
+            else:
+                logger.warning("structured_image_render_failed", prompt=block["prompt"][:50])
+                # Skip failed images
+        else:
+            rendered_blocks.append(block)
+
+    logger.info(
+        "structured_content_ready",
+        total_blocks=len(rendered_blocks),
+        images=img_idx,
+    )
+    return rendered_blocks
