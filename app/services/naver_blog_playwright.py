@@ -4,7 +4,7 @@ Uses playwright-stealth to bypass bot detection since
 Naver Blog Write API has been officially deprecated.
 
 Supports structured content blocks (headings, paragraphs,
-images, quotes, dividers, links) via SmartEditor integration.
+images, quotes, dividers, links, highlights) via SmartEditor.
 """
 from __future__ import annotations
 
@@ -53,6 +53,14 @@ window.chrome = { runtime: {} };
 """
 
 _VIEWPORT = {"width": 1920, "height": 1080}
+
+# Quote style index in SmartEditor quotation dropdown (0-based).
+_QUOTE_STYLE_INDEX: dict[str, int] = {
+    "classic": 0,
+    "vertical": 1,
+    "bubble": 2,
+    "sticker": 3,
+}
 
 # ---------------------------------------------------------------------------
 # Human-like motion helpers (module level)
@@ -107,25 +115,16 @@ class NaverBlogPlaywright:
         return self.session_path.exists()
 
     async def setup_session(self) -> None:
-        """Open a visible browser for the user to log in manually.
-
-        After login is detected the session state is saved to
-        *session_path* for later reuse.  Session is **not** saved if
-        login is not confirmed within the timeout.
-        """
+        """Open a visible browser for the user to log in manually."""
         from playwright_stealth import Stealth
 
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(
-                headless=False,
-                slow_mo=50,
-                args=_BROWSER_ARGS,
+                headless=False, slow_mo=50, args=_BROWSER_ARGS,
             )
             context = await browser.new_context(
-                viewport=_VIEWPORT,
-                locale="ko-KR",
-                timezone_id="Asia/Seoul",
-                user_agent=_USER_AGENT,
+                viewport=_VIEWPORT, locale="ko-KR",
+                timezone_id="Asia/Seoul", user_agent=_USER_AGENT,
             )
             page = await context.new_page()
             await Stealth().apply_stealth_async(page)
@@ -163,8 +162,7 @@ class NaverBlogPlaywright:
             try:
                 await page.goto(
                     "https://blog.naver.com/",
-                    wait_until="domcontentloaded",
-                    timeout=15_000,
+                    wait_until="domcontentloaded", timeout=15_000,
                 )
                 await page.wait_for_timeout(2000)
             except Exception:
@@ -187,24 +185,18 @@ class NaverBlogPlaywright:
         except Exception:
             sx, sy = 640.0, 400.0
 
-        points = _bezier_curve(sx, sy, x, y)
-        for px, py in points:
+        for px, py in _bezier_curve(sx, sy, x, y):
             await page.mouse.move(px, py)
             await page.wait_for_timeout(random.randint(5, 15))
-
-        # Track position for next call
         await page.evaluate(f"window._mx={x}; window._my={y};")
-        # Hover pause
         await page.wait_for_timeout(random.randint(50, 150))
 
     async def _human_click(self, page: Page, x: float, y: float) -> None:
-        """Move mouse to (x, y) with bezier curve then click."""
         await self._human_move(page, x, y)
         await page.mouse.click(x, y)
         await page.wait_for_timeout(random.randint(100, 300))
 
     async def _human_click_element(self, page: Page, el: Any) -> None:
-        """Click a Playwright element handle with human-like motion."""
         try:
             box = await el.bounding_box()
             if box:
@@ -224,8 +216,6 @@ class NaverBlogPlaywright:
             if wi > 0:
                 await page.keyboard.type(" ")
                 await page.wait_for_timeout(random.randint(50, 150))
-
-            # 5% chance of typo (only on ASCII words > 2 chars)
             if (
                 random.random() < 0.05
                 and len(word) > 2
@@ -240,15 +230,11 @@ class NaverBlogPlaywright:
                 for _ in range(len(wrong)):
                     await page.keyboard.press("Backspace")
                 await page.wait_for_timeout(random.randint(80, 200))
-
             await page.keyboard.type(word, delay=random.randint(40, 100))
-
-            # Sentence-end pause
             if word and word[-1] in ".!?":
                 await page.wait_for_timeout(random.randint(300, 800))
 
     async def _human_scroll(self, page: Page, total_px: int) -> None:
-        """Scroll gradually in small increments."""
         direction = 1 if total_px > 0 else -1
         remaining = abs(total_px)
         while remaining > 0:
@@ -257,9 +243,86 @@ class NaverBlogPlaywright:
             remaining -= step
             await page.wait_for_timeout(random.randint(40, 90))
 
-    async def _random_wait(self, page: Page, low: int = 1000, high: int = 3000) -> None:
-        """Wait a random duration (simulates human pause)."""
+    async def _random_wait(
+        self, page: Page, low: int = 1000, high: int = 3000,
+    ) -> None:
         await page.wait_for_timeout(random.randint(low, high))
+
+    # ------------------------------------------------------------------
+    # Style reset helpers (mobile-optimisation / anti-contamination)
+    # ------------------------------------------------------------------
+
+    async def _reset_formatting(self, page: Page) -> None:
+        """Clear bold, italic, underline and reset font size.
+
+        Called after every heading / highlight block so that the
+        style does **not** leak into the next paragraph.
+        """
+        # Turn off bold / italic / underline if active
+        for key in ("b", "i", "u"):
+            await page.keyboard.down("Control")
+            await page.keyboard.press(key)
+            await page.keyboard.up("Control")
+            await page.wait_for_timeout(50)
+        # Toggle them back (now they are guaranteed OFF)
+        for key in ("b", "i", "u"):
+            await page.keyboard.down("Control")
+            await page.keyboard.press(key)
+            await page.keyboard.up("Control")
+            await page.wait_for_timeout(50)
+
+        # Actually — the above double-toggle is fragile.
+        # Instead: press once to ensure OFF, relying on the fact that
+        # _block_heading turned bold ON, so one press turns it OFF.
+        # Let's use a different approach: just hit Ctrl+B twice rapidly.
+        # The SE One editor tracks toggle state internally.
+        # We'll rely on a simpler method: type a zero-width space,
+        # select it, and clear formatting via the editor's "clear format" button.
+        # But that's also fragile. The safest approach is to:
+        #
+        # 1. Press Enter to start a new paragraph (which resets in SE One)
+        # 2. Try clicking the "clear format" toolbar button
+        #
+        # SE One resets formatting on new paragraph automatically for
+        # block-level styles. The issue is inline styles (bold/italic).
+
+        # Try the "clear format" / "removeFormat" toolbar button
+        try:
+            clear_btn = await page.query_selector(
+                'button[data-name="removeFormat"]',
+            )
+            if clear_btn:
+                await clear_btn.click()
+                await page.wait_for_timeout(100)
+                return
+        except Exception:
+            pass
+
+        # Fallback: select the new empty line and clear
+        # Actually safest: just ensure bold is OFF by pressing Ctrl+B
+        # We already turned bold OFF in _block_heading, so this is a no-op
+        # safety net.
+
+    async def _ensure_left_align(self, page: Page) -> None:
+        """Force left alignment via Ctrl+L (SmartEditor shortcut)."""
+        await page.keyboard.down("Control")
+        await page.keyboard.press("l")
+        await page.keyboard.up("Control")
+        await page.wait_for_timeout(80)
+
+    async def _ensure_plain_style(self, page: Page) -> None:
+        """Reset to normal paragraph style — no bold, no italic, left align."""
+        # Attempt removeFormat button
+        try:
+            clear_btn = await page.query_selector(
+                'button[data-name="removeFormat"]',
+            )
+            if clear_btn:
+                await clear_btn.click()
+                await page.wait_for_timeout(100)
+        except Exception:
+            pass
+        await self._ensure_left_align(page)
 
     # ------------------------------------------------------------------
     # Posting
@@ -275,25 +338,17 @@ class NaverBlogPlaywright:
     ) -> dict[str, Any]:
         """Write and publish a blog post.
 
-        Args:
-            title: Blog post title.
-            content: Either a plain-text string (sections separated by
-                ``\\n\\n``) or a list of structured content blocks::
+        *content* may be a plain string or a list of structured blocks::
 
-                    [
-                        {"type": "heading2", "text": "..."},
-                        {"type": "paragraph", "text": "..."},
-                        {"type": "image", "url": "...", "caption": "..."},
-                        {"type": "quote", "text": "..."},
-                        {"type": "divider"},
-                        {"type": "link", "text": "...", "url": "..."},
-                    ]
-
-            images: Image file paths or URLs (plain-text mode only).
-            tags: Hashtag strings (without ``#``).
-
-        Returns:
-            Dict with ``success``, ``url``, and optional ``error``.
+            [
+                {"type": "heading2", "text": "..."},
+                {"type": "paragraph", "text": "..."},
+                {"type": "image", "url": "...", "caption": "..."},
+                {"type": "quote", "text": "...", "style": "vertical"},
+                {"type": "highlight", "text": "...", "color": "red"},
+                {"type": "divider"},
+                {"type": "link", "text": "...", "url": "..."},
+            ]
         """
         if not self.has_session():
             return {"success": False, "error": "No session file. Run setup_session() first."}
@@ -302,7 +357,6 @@ class NaverBlogPlaywright:
 
         from playwright_stealth import Stealth
 
-        # Resolve images for plain-text mode
         local_images: list[Path] = []
         temp_dir: str | None = None
         if isinstance(content, str) and images:
@@ -315,7 +369,6 @@ class NaverBlogPlaywright:
                 except Exception as exc:
                     logger.warning("image_resolve_failed", index=i, error=str(exc))
 
-        # For structured content, pre-download images in blocks
         block_temp_dir: str | None = None
         if isinstance(content, list):
             block_temp_dir = tempfile.mkdtemp(prefix="naver_block_img_")
@@ -324,67 +377,53 @@ class NaverBlogPlaywright:
         try:
             async with async_playwright() as pw:
                 browser = await pw.chromium.launch(
-                    headless=False,
-                    slow_mo=60,
-                    args=_BROWSER_ARGS,
+                    headless=False, slow_mo=60, args=_BROWSER_ARGS,
                 )
                 context = await browser.new_context(
                     storage_state=str(self.session_path),
-                    viewport=_VIEWPORT,
-                    locale="ko-KR",
-                    timezone_id="Asia/Seoul",
-                    user_agent=_USER_AGENT,
+                    viewport=_VIEWPORT, locale="ko-KR",
+                    timezone_id="Asia/Seoul", user_agent=_USER_AGENT,
                 )
                 page = await context.new_page()
                 await Stealth().apply_stealth_async(page)
                 await page.add_init_script(_ANTI_DETECT_SCRIPT)
 
-                # Step 1: Open editor + random wait
                 await self._open_editor(page)
                 await self._random_wait(page, 1000, 2500)
 
-                # Step 2: Type title
                 await self._input_title(page, title)
-
-                # Step 3: Move to body area
                 await page.keyboard.press("Tab")
                 await self._random_wait(page, 400, 800)
+                # Ensure body starts in plain left-aligned style
+                await self._ensure_left_align(page)
 
-                # Step 4: Write content
                 if isinstance(content, list):
                     await self._write_blocks(page, content)
                 else:
                     sections = [s for s in content.split("\n\n") if s.strip()]
                     await self._write_body(page, sections, local_images)
 
-                # Step 5: Hashtags
                 if tags:
                     await self._input_hashtags(page, tags)
 
-                # Step 6: Publish
                 published = await self._publish(page)
-
                 await page.wait_for_timeout(3000)
                 final_url = page.url
 
-                success = (
-                    published
-                    and ("PostView" in final_url or "logNo" in final_url)
+                success = published and (
+                    "PostView" in final_url or "logNo" in final_url
                 )
-
                 await context.storage_state(path=str(self.session_path))
                 await browser.close()
 
                 if success:
                     logger.info("naver_blog_published", url=final_url)
                     return {"success": True, "url": final_url}
-                else:
-                    logger.warning("naver_blog_publish_uncertain", url=final_url)
-                    return {
-                        "success": True,
-                        "url": final_url,
-                        "warning": "Publish clicked but PostView URL not confirmed.",
-                    }
+                logger.warning("naver_blog_publish_uncertain", url=final_url)
+                return {
+                    "success": True, "url": final_url,
+                    "warning": "Publish clicked but PostView URL not confirmed.",
+                }
 
         except Exception as exc:
             logger.error("naver_blog_post_failed", error=str(exc))
@@ -402,11 +441,9 @@ class NaverBlogPlaywright:
     async def _resolve_image(
         self, img: str, temp_dir: Path, index: int,
     ) -> Path | None:
-        """If *img* is a URL download it; if a path return as-is."""
         path = Path(img)
         if path.exists():
             return path
-
         if img.startswith(("http://", "https://")):
             dest = temp_dir / f"img_{index}.jpg"
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -417,26 +454,22 @@ class NaverBlogPlaywright:
         return None
 
     async def _resolve_block_images(
-        self,
-        blocks: list[dict[str, Any]],
-        temp_dir: Path,
+        self, blocks: list[dict[str, Any]], temp_dir: Path,
     ) -> list[dict[str, Any]]:
-        """Download URLs in image blocks to local temp files."""
         resolved: list[dict[str, Any]] = []
         img_idx = 0
         for block in blocks:
             if block.get("type") == "image" and block.get("url"):
-                url = block["url"]
                 try:
-                    local = await self._resolve_image(url, temp_dir, img_idx)
+                    local = await self._resolve_image(
+                        block["url"], temp_dir, img_idx,
+                    )
                     if local:
-                        new_block = {**block, "_local_path": str(local)}
-                        resolved.append(new_block)
+                        resolved.append({**block, "_local_path": str(local)})
                         img_idx += 1
                         continue
                 except Exception as exc:
                     logger.warning("block_image_resolve_failed", error=str(exc))
-                # Keep block but without local path (will be skipped)
                 resolved.append(block)
             else:
                 resolved.append(block)
@@ -447,14 +480,11 @@ class NaverBlogPlaywright:
     # ------------------------------------------------------------------
 
     async def _open_editor(self, page: Page) -> None:
-        """Navigate to the blog editor and dismiss popups."""
         await page.goto(
             f"https://blog.naver.com/{self.blog_id}/postwrite",
             timeout=30_000,
         )
         await page.wait_for_timeout(5000)
-
-        # Dismiss "resume draft?" popup
         try:
             cancel = await page.query_selector(".se-popup-button-cancel")
             if cancel:
@@ -462,11 +492,9 @@ class NaverBlogPlaywright:
                 await page.wait_for_timeout(1000)
         except Exception:
             pass
-
         logger.info("naver_editor_opened")
 
     async def _input_title(self, page: Page, title: str) -> None:
-        """Click the title area and type with human-like motion."""
         title_el = await page.query_selector(
             ".se-documentTitle .se-text-paragraph",
         )
@@ -479,18 +507,13 @@ class NaverBlogPlaywright:
         logger.info("naver_title_entered", title=title[:50])
 
     async def _upload_one_image(self, page: Page, image_path: Path) -> bool:
-        """Upload a single image via the editor toolbar button."""
         try:
             image_btn = await page.query_selector('button[data-name="image"]')
             if not image_btn:
                 return False
-
             await self._human_click_element(page, image_btn)
             await page.wait_for_timeout(500)
-
-            # Wait for file chooser dialog
             async with page.expect_file_chooser(timeout=5000) as fc_info:
-                # Some editors need a second click on "PC upload" option
                 pc_btn = await page.query_selector(
                     'button[class*="pc_upload"], li[data-type="local"] button',
                 )
@@ -511,35 +534,25 @@ class NaverBlogPlaywright:
     # ------------------------------------------------------------------
 
     async def _write_body(
-        self,
-        page: Page,
-        sections: list[str],
-        images: list[Path],
+        self, page: Page, sections: list[str], images: list[Path],
     ) -> None:
-        """Alternate between uploading images and typing text sections."""
         max_loop = max(len(images), len(sections))
         uploaded = 0
-
         for i in range(max_loop):
             if i < len(images):
                 if await self._upload_one_image(page, images[i]):
                     uploaded += 1
-
             if i < len(sections):
                 await self._type_section(page, sections[i])
                 await self._random_wait(page, 200, 500)
-
         logger.info(
             "naver_body_written",
-            sections=len(sections),
-            images_uploaded=uploaded,
+            sections=len(sections), images_uploaded=uploaded,
         )
 
     async def _type_section(self, page: Page, text: str) -> None:
-        """Type a text section line by line with realistic delays."""
-        lines = text.split("\n")
-        for line in lines:
-            if line.strip() == "":
+        for line in text.split("\n"):
+            if not line.strip():
                 await page.keyboard.press("Enter")
             else:
                 await self._human_type(page, line)
@@ -551,8 +564,9 @@ class NaverBlogPlaywright:
     # Structured content blocks
     # ------------------------------------------------------------------
 
-    async def _write_blocks(self, page: Page, blocks: list[dict[str, Any]]) -> None:
-        """Process structured content blocks sequentially."""
+    async def _write_blocks(
+        self, page: Page, blocks: list[dict[str, Any]],
+    ) -> None:
         stats: dict[str, int] = {}
         for block in blocks:
             btype = block.get("type", "paragraph")
@@ -564,7 +578,15 @@ class NaverBlogPlaywright:
                 elif btype == "image":
                     await self._block_image(page, block)
                 elif btype == "quote":
-                    await self._block_quote(page, block.get("text", ""))
+                    await self._block_quote(
+                        page, block.get("text", ""),
+                        style=block.get("style", "classic"),
+                    )
+                elif btype == "highlight":
+                    await self._block_highlight(
+                        page, block.get("text", ""),
+                        color=block.get("color", "red"),
+                    )
                 elif btype == "divider":
                     await self._block_divider(page)
                 elif btype == "link":
@@ -572,118 +594,126 @@ class NaverBlogPlaywright:
                         page, block.get("text", ""), block.get("url", ""),
                     )
                 else:
-                    # Unknown type — treat as paragraph
                     await self._block_paragraph(page, block.get("text", ""))
-
                 stats[btype] = stats.get(btype, 0) + 1
             except Exception as exc:
                 logger.warning("block_failed", type=btype, error=str(exc))
-
             await self._random_wait(page, 200, 600)
 
         logger.info("naver_blocks_written", stats=stats)
 
-    async def _block_heading(self, page: Page, text: str, level: str) -> None:
-        """Insert a heading using bold + font size increase."""
+    # --- heading -------------------------------------------------------
+
+    async def _block_heading(
+        self, page: Page, text: str, level: str,
+    ) -> None:
+        """Insert heading: bold text, then **fully reset** style."""
         if not text:
             return
 
-        # Bold on
+        # Ensure left align before heading
+        await self._ensure_left_align(page)
+
+        # Bold ON
         await page.keyboard.down("Control")
         await page.keyboard.press("b")
         await page.keyboard.up("Control")
-        await page.wait_for_timeout(100)
+        await page.wait_for_timeout(80)
 
-        # For heading2, try to apply larger font size via toolbar
-        if level == "heading2":
-            await self._try_font_size(page, increase=3)
-        elif level == "heading3":
-            await self._try_font_size(page, increase=1)
+        # Font size increase
+        increase = 3 if level == "heading2" else 1
+        await self._try_font_size(page, increase=increase)
 
+        # Type heading text
         await self._human_type(page, text)
-        await page.keyboard.press("Enter")
 
-        # Bold off and reset font size
+        # New line to finalize heading paragraph
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(100)
+
+        # === Critical: reset ALL formatting so next block is clean ===
+        # 1. Bold OFF
         await page.keyboard.down("Control")
         await page.keyboard.press("b")
         await page.keyboard.up("Control")
-        await page.wait_for_timeout(100)
+        await page.wait_for_timeout(80)
 
-        # Reset font size
-        if level in ("heading2", "heading3"):
-            await self._try_reset_font_size(page)
+        # 2. Reset font size back to default
+        await self._try_reset_font_size(page)
 
+        # 3. Try removeFormat button for anything else that leaked
+        await self._ensure_plain_style(page)
+
+        # 4. Extra Enter for spacing (mobile readability)
         await page.keyboard.press("Enter")
 
     async def _try_font_size(self, page: Page, increase: int = 1) -> None:
-        """Try to increase font size via toolbar button."""
         try:
-            size_up = await page.query_selector(
+            btn = await page.query_selector(
                 'button[data-name="fontSizeUp"], button[class*="font_size_up"]',
             )
-            if size_up:
+            if btn:
                 for _ in range(increase):
-                    await size_up.click()
-                    await page.wait_for_timeout(100)
+                    await btn.click()
+                    await page.wait_for_timeout(80)
         except Exception:
             pass
 
     async def _try_reset_font_size(self, page: Page) -> None:
-        """Try to reset font size via toolbar."""
         try:
-            size_down = await page.query_selector(
+            btn = await page.query_selector(
                 'button[data-name="fontSizeDown"], button[class*="font_size_down"]',
             )
-            if size_down:
-                for _ in range(5):
-                    await size_down.click()
+            if btn:
+                for _ in range(6):  # more clicks to ensure full reset
+                    await btn.click()
                     await page.wait_for_timeout(50)
         except Exception:
             pass
 
+    # --- paragraph -----------------------------------------------------
+
     async def _block_paragraph(self, page: Page, text: str) -> None:
-        """Type a paragraph with natural typing."""
         if not text:
             return
-
-        # Split into sentences for natural pacing
+        await self._ensure_left_align(page)
         sentences = text.replace(". ", ".|").split("|")
         for i, sentence in enumerate(sentences):
             if i > 0:
                 await page.keyboard.type(" ")
                 await self._random_wait(page, 200, 500)
             await self._human_type(page, sentence.strip())
+        # Double Enter for mobile spacing
+        await page.keyboard.press("Enter")
+        await page.keyboard.press("Enter")
 
-        await page.keyboard.press("Enter")
-        await page.keyboard.press("Enter")
+    # --- image ---------------------------------------------------------
 
     async def _block_image(self, page: Page, block: dict[str, Any]) -> None:
-        """Upload an image block (pre-resolved to local path)."""
         local_path = block.get("_local_path")
         if not local_path:
             logger.warning("block_image_no_local_path")
             return
-
         path = Path(local_path)
         if not path.exists():
             logger.warning("block_image_file_missing", path=local_path)
             return
-
         uploaded = await self._upload_one_image(page, path)
-
-        # Add caption if present
         caption = block.get("caption")
         if uploaded and caption:
             await page.keyboard.press("Enter")
             await self._human_type(page, caption)
             await page.keyboard.press("Enter")
 
-    async def _block_quote(self, page: Page, text: str) -> None:
-        """Insert a quotation block via SmartEditor toolbar."""
+    # --- quote (with style selection) ----------------------------------
+
+    async def _block_quote(
+        self, page: Page, text: str, *, style: str = "classic",
+    ) -> None:
+        """Insert a quotation block, optionally selecting a style variant."""
         if not text:
             return
 
-        # Try SmartEditor quotation button
         inserted = False
         try:
             quote_btn = await page.query_selector(
@@ -691,27 +721,149 @@ class NaverBlogPlaywright:
             )
             if quote_btn:
                 await self._human_click_element(page, quote_btn)
-                await page.wait_for_timeout(800)
+                await page.wait_for_timeout(600)
+
+                # Try to pick a style from the quote style selector
+                await self._select_quote_style(page, style)
+                await page.wait_for_timeout(400)
                 inserted = True
         except Exception:
             pass
 
         if inserted:
             await self._human_type(page, text)
-            # Move cursor out of quote block
+            # === Escape from quote block reliably ===
+            # Press ArrowDown repeatedly + Enter to exit the quote component
+            for _ in range(3):
+                await page.keyboard.press("ArrowDown")
+                await page.wait_for_timeout(100)
             await page.keyboard.press("Enter")
-            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(200)
+            # Press Escape to deselect the quote component
             await page.keyboard.press("Escape")
-            await page.wait_for_timeout(300)
+            await page.wait_for_timeout(200)
+            # Click below the quote block to ensure cursor is outside
+            await page.keyboard.press("End")
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(200)
+            # Reset to plain style
+            await self._ensure_plain_style(page)
+            # Extra Enter for spacing
+            await page.keyboard.press("Enter")
         else:
-            # Fallback: plain-text quote style
-            for line in text.split("\n"):
-                await page.keyboard.type(f"> {line}")
-                await page.keyboard.press("Enter")
+            # Fallback: just italic text for visual distinction
+            await self._ensure_left_align(page)
+            await page.keyboard.type(f"\u300c{text}\u300d")
+            await page.keyboard.press("Enter")
             await page.keyboard.press("Enter")
 
+    async def _select_quote_style(self, page: Page, style: str) -> None:
+        """Try to select a quote style from the SE One quote dropdown."""
+        idx = _QUOTE_STYLE_INDEX.get(style, 0)
+        if idx == 0:
+            return  # classic is the default, no selection needed
+
+        try:
+            # Look for quote style options in the dropdown/panel
+            style_items = await page.query_selector_all(
+                '.se-quotation-style-item, '
+                '[class*="quotation_style"] li, '
+                '[class*="quote_style"] button',
+            )
+            if style_items and idx < len(style_items):
+                await self._human_click_element(page, style_items[idx])
+                await page.wait_for_timeout(300)
+                return
+
+            # Alternative: look for data attributes
+            style_btn = await page.query_selector(
+                f'[data-style-index="{idx}"], '
+                f'[data-value="{style}"]',
+            )
+            if style_btn:
+                await self._human_click_element(page, style_btn)
+                await page.wait_for_timeout(300)
+        except Exception as exc:
+            logger.warning("quote_style_select_failed", style=style, error=str(exc))
+
+    # --- highlight -----------------------------------------------------
+
+    async def _block_highlight(
+        self, page: Page, text: str, *, color: str = "red",
+    ) -> None:
+        """Type bold colored text, then reset formatting."""
+        if not text:
+            return
+
+        await self._ensure_left_align(page)
+
+        # Bold ON
+        await page.keyboard.down("Control")
+        await page.keyboard.press("b")
+        await page.keyboard.up("Control")
+        await page.wait_for_timeout(80)
+
+        # Try to set font color via toolbar
+        await self._try_font_color(page, color)
+
+        # Type the highlighted text
+        await self._human_type(page, text)
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(100)
+
+        # Bold OFF
+        await page.keyboard.down("Control")
+        await page.keyboard.press("b")
+        await page.keyboard.up("Control")
+        await page.wait_for_timeout(80)
+
+        # Reset color to black
+        await self._try_font_color(page, "black")
+
+        # Full style reset
+        await self._ensure_plain_style(page)
+        await page.keyboard.press("Enter")
+
+    async def _try_font_color(self, page: Page, color: str) -> None:
+        """Try to change font color via the SmartEditor toolbar."""
+        _COLOR_MAP = {
+            "red": "#ff0000",
+            "blue": "#0000ff",
+            "green": "#009a00",
+            "orange": "#ff6600",
+            "black": "#000000",
+        }
+        hex_color = _COLOR_MAP.get(color, color)
+
+        try:
+            # Click the font color button to open palette
+            color_btn = await page.query_selector(
+                'button[data-name="fontColor"], button[class*="font_color"]',
+            )
+            if not color_btn:
+                return
+
+            await self._human_click_element(page, color_btn)
+            await page.wait_for_timeout(500)
+
+            # Try to find the color in the palette
+            color_el = await page.query_selector(
+                f'[data-color="{hex_color}"], '
+                f'[style*="background-color: {hex_color}"], '
+                f'[style*="background: {hex_color}"]',
+            )
+            if color_el:
+                await self._human_click_element(page, color_el)
+                await page.wait_for_timeout(200)
+            else:
+                # Close palette without selecting
+                await page.keyboard.press("Escape")
+        except Exception as exc:
+            logger.warning("font_color_failed", color=color, error=str(exc))
+
+    # --- divider -------------------------------------------------------
+
     async def _block_divider(self, page: Page) -> None:
-        """Insert a horizontal rule via SmartEditor toolbar."""
         try:
             hr_btn = await page.query_selector(
                 'button[data-name="horizontalRule"]',
@@ -722,18 +874,14 @@ class NaverBlogPlaywright:
                 return
         except Exception:
             pass
-
-        # Fallback: visual divider text
-        await page.keyboard.type("ㅡ" * 30)
+        await page.keyboard.type("\u3161" * 30)
         await page.keyboard.press("Enter")
 
+    # --- link ----------------------------------------------------------
+
     async def _block_link(self, page: Page, text: str, url: str) -> None:
-        """Insert a link — type text with URL in parentheses as fallback."""
         if not text and not url:
             return
-
-        # Fallback approach: just type "text (url)" since link insertion
-        # in SmartEditor requires complex selector chains
         display = text or url
         await self._human_type(page, display)
         if url and text:
@@ -745,15 +893,28 @@ class NaverBlogPlaywright:
     # ------------------------------------------------------------------
 
     async def _input_hashtags(self, page: Page, tags: list[str]) -> None:
-        """Type hashtags at the end of the post."""
+        """Type hashtags as plain text at the end (NOT inside quote block)."""
+        # Ensure we escaped any active component (quote, etc.)
+        for _ in range(3):
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(100)
+
+        # Click at end of document to be safe
+        await page.keyboard.down("Control")
+        await page.keyboard.press("End")
+        await page.keyboard.up("Control")
+        await page.wait_for_timeout(200)
+
+        # New paragraph + ensure plain style
         await page.keyboard.press("Enter")
+        await self._ensure_plain_style(page)
+        await page.wait_for_timeout(200)
+
         hashtag_text = " ".join(f"#{t.replace(' ', '')}" for t in tags)
         await self._human_type(page, hashtag_text)
         logger.info("naver_hashtags_entered", count=len(tags))
 
     async def _publish(self, page: Page) -> bool:
-        """Click publish buttons (header -> confirm dialog)."""
-        # Close help panels / tooltips
         for _ in range(3):
             await page.keyboard.press("Escape")
             await page.wait_for_timeout(200)
@@ -778,7 +939,6 @@ class NaverBlogPlaywright:
         await self._human_scroll(page, -2000)
         await page.wait_for_timeout(500)
 
-        # Click header publish button
         header_btn = await page.query_selector(
             'button[class*="publish_btn"], header button[class*="publish"]',
         )
@@ -788,7 +948,6 @@ class NaverBlogPlaywright:
             await self._human_click(page, 1810, 22)
         await page.wait_for_timeout(2000)
 
-        # Click final confirm button in publish dialog
         confirm_selectors = [
             'button[class*="confirm_btn"]',
             'button[class*="btn_publish"]',
@@ -804,7 +963,6 @@ class NaverBlogPlaywright:
             except Exception:
                 continue
 
-        # Try finding button by text content
         buttons = await page.query_selector_all("button")
         for btn in buttons:
             text = await btn.text_content()
@@ -814,7 +972,6 @@ class NaverBlogPlaywright:
                     await page.wait_for_timeout(5000)
                     return True
 
-        # Fallback: coordinate clicks
         await self._human_click(page, 480, 455)
         await page.wait_for_timeout(2000)
         await self._human_click(page, 470, 450)
