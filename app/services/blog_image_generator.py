@@ -38,6 +38,7 @@ _STRUCTURED_SYSTEM = (
     '  {"type":"image","prompt":"English image prompt for AI generation"}\n'
     '  {"type":"quote","text":"...","style":"vertical|bubble|sticker"}\n'
     '  {"type":"highlight","text":"...","color":"red|blue|green|orange"}\n'
+    '  {"type":"table","headers":["col1","col2"],"rows":[["val1","val2"]]}\n'
     '  {"type":"divider"}\n'
     "Rules:\n"
     "- Write all text content in Korean\n"
@@ -45,6 +46,7 @@ _STRUCTURED_SYSTEM = (
     "- Include 2-3 image blocks with English prompts\n"
     "- Include 2-3 quote blocks, each with a DIFFERENT style (vertical, bubble, sticker)\n"
     "- Include 1-2 highlight blocks for key takeaways\n"
+    "- Include 0-2 table blocks when content has numbers, comparisons, or lists\n"
     "- Use dividers between major sections\n"
     "- Paragraphs should be 2-4 sentences each\n"
     "- Return ONLY the JSON array, no markdown fences"

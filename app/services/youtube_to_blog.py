@@ -77,6 +77,7 @@ _TRANSCRIPT_TO_BLOG_SYSTEM = (
     '    {"type": "quote", "text": "quote text", "style": "vertical"},\n'
     '    {"type": "image", "prompt": "English image prompt for AI generation"},\n'
     '    {"type": "highlight", "text": "key point", "color": "blue"},\n'
+    '    {"type": "table", "headers": ["col1", "col2"], "rows": [["val1", "val2"]]},\n'
     '    {"type": "divider"},\n'
     '    {"type": "paragraph", "text": "closing text..."}\n'
     "  ]\n"
@@ -88,6 +89,7 @@ _TRANSCRIPT_TO_BLOG_SYSTEM = (
     "- quote: Memorable quote (style: vertical|bubble|sticker, vary styles)\n"
     "- image: AI illustration (prompt in English, 2-3 per post)\n"
     "- highlight: Key takeaway (color: red|blue|green|orange, 1-2 per post)\n"
+    "- table: Data table (use 0-2 when content has numbers, comparisons, or stats)\n"
     "- divider: Section separator\n"
     "\n"
     "MUST include at the end:\n"

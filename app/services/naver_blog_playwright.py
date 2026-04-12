@@ -499,28 +499,52 @@ class NaverBlogPlaywright:
         if len(title) > 90:
             title = title[:87] + "..."
 
-        title_el = await page.query_selector(
+        # Click title area — try multiple selectors in priority order
+        _TITLE_SELECTORS = [
             ".se-documentTitle .se-text-paragraph span",
-        )
-        if not title_el:
-            title_el = await page.query_selector(
-                ".se-documentTitle .se-text-paragraph",
-            )
-        if title_el:
-            await self._human_click_element(page, title_el)
-        else:
+            ".se-documentTitle .se-text-paragraph",
+            ".se-documentTitle",
+        ]
+        clicked = False
+        for sel in _TITLE_SELECTORS:
+            el = await page.query_selector(sel)
+            if el:
+                await self._human_click_element(page, el)
+                clicked = True
+                break
+        if not clicked:
             await self._human_click(page, 640, 130)
-        await page.wait_for_timeout(150)
+
+        await page.wait_for_timeout(300)
+
+        # Clear any existing title text before typing
+        await page.keyboard.down("Control")
+        await page.keyboard.press("a")
+        await page.keyboard.up("Control")
+        await page.wait_for_timeout(100)
+
         await self._human_type(page, title)
-        # Move focus to body area explicitly
-        body_el = await page.query_selector(
+
+        # Wait 1 second for title to settle, then move focus to body
+        await page.wait_for_timeout(1000)
+
+        # Move focus to body area — try clicking body element explicitly
+        _BODY_SELECTORS = [
             ".se-component-content .se-text-paragraph",
-        )
-        if body_el:
-            await self._human_click_element(page, body_el)
-        else:
+            ".se-content .se-text-paragraph",
+            ".se-component.se-text .se-text-paragraph",
+        ]
+        body_clicked = False
+        for sel in _BODY_SELECTORS:
+            el = await page.query_selector(sel)
+            if el:
+                await self._human_click_element(page, el)
+                body_clicked = True
+                break
+        if not body_clicked:
             await page.keyboard.press("Tab")
-        await page.wait_for_timeout(150)
+
+        await page.wait_for_timeout(300)
         logger.info("naver_title_entered", title=title[:50])
 
     async def _upload_one_image(self, page: Page, image_path: Path) -> bool:
@@ -615,6 +639,10 @@ class NaverBlogPlaywright:
         stats: dict[str, int] = {}
         for block in blocks:
             btype = block.get("type", "paragraph")
+            # Guard: stop if browser/page was closed
+            if page.is_closed():
+                logger.warning("page_closed_during_blocks", written=sum(stats.values()))
+                break
             try:
                 if btype in ("heading2", "heading3"):
                     await self._block_heading(page, block.get("text", ""), btype)
@@ -632,6 +660,8 @@ class NaverBlogPlaywright:
                         page, block.get("text", ""),
                         color=block.get("color", "red"),
                     )
+                elif btype == "table":
+                    await self._block_table(page, block)
                 elif btype == "divider":
                     await self._block_divider(page)
                 elif btype == "link":
@@ -693,28 +723,32 @@ class NaverBlogPlaywright:
         await page.keyboard.press("Enter")
 
     async def _try_font_size(self, page: Page, increase: int = 1) -> None:
-        try:
-            btn = await page.query_selector(
-                'button[data-name="fontSizeUp"], button[class*="font_size_up"]',
-            )
-            if btn:
-                for _ in range(increase):
+        for _ in range(increase):
+            try:
+                btn = await page.query_selector(
+                    'button[data-name="fontSizeUp"]',
+                )
+                if btn and await btn.is_visible():
                     await btn.click()
-                    await page.wait_for_timeout(80)
-        except Exception:
-            pass
+                    await page.wait_for_timeout(120)
+                else:
+                    break
+            except Exception:
+                break
 
     async def _try_reset_font_size(self, page: Page) -> None:
-        try:
-            btn = await page.query_selector(
-                'button[data-name="fontSizeDown"], button[class*="font_size_down"]',
-            )
-            if btn:
-                for _ in range(6):  # more clicks to ensure full reset
+        for _ in range(6):
+            try:
+                btn = await page.query_selector(
+                    'button[data-name="fontSizeDown"]',
+                )
+                if btn and await btn.is_visible():
                     await btn.click()
-                    await page.wait_for_timeout(50)
-        except Exception:
-            pass
+                    await page.wait_for_timeout(80)
+                else:
+                    break
+            except Exception:
+                break
 
     # --- paragraph -----------------------------------------------------
 
@@ -905,6 +939,122 @@ class NaverBlogPlaywright:
                 await page.keyboard.press("Escape")
         except Exception as exc:
             logger.warning("font_color_failed", color=color, error=str(exc))
+
+    # --- table ---------------------------------------------------------
+
+    async def _block_table(self, page: Page, block: dict[str, Any]) -> None:
+        """Insert a table block. Falls back to paragraph on failure."""
+        headers: list[str] = block.get("headers", [])
+        rows: list[list[str]] = block.get("rows", [])
+        if not headers and not rows:
+            return
+
+        cols = len(headers) if headers else (len(rows[0]) if rows else 0)
+        data_rows = len(rows)
+        total_rows = (1 if headers else 0) + data_rows
+
+        if cols == 0 or total_rows == 0:
+            return
+
+        try:
+            table_btn = await page.query_selector(
+                'button[data-name="table"]',
+            )
+            if not table_btn:
+                raise RuntimeError("Table button not found")
+
+            await self._human_click_element(page, table_btn)
+            await page.wait_for_timeout(500)
+
+            # SE One shows a grid picker — try to click the cell at (col, row)
+            grid_cells = await page.query_selector_all(
+                ".se-table-size-picker td, "
+                "[class*='table_size'] td, "
+                "[class*='table_picker'] td",
+            )
+
+            if grid_cells:
+                # Grids are typically 10-wide; detect width from first row
+                grid_width = 10
+                try:
+                    first_cell_box = await grid_cells[0].bounding_box()
+                    if first_cell_box and len(grid_cells) > 1:
+                        second_row_y = None
+                        for i, cell in enumerate(grid_cells[1:], 1):
+                            box = await cell.bounding_box()
+                            if box and box["y"] > first_cell_box["y"] + 2:
+                                grid_width = i
+                                break
+                except Exception:
+                    pass
+
+                target_col = min(cols, grid_width) - 1
+                target_row = min(total_rows, 10) - 1
+                target_idx = target_row * grid_width + target_col
+
+                if target_idx < len(grid_cells):
+                    await self._human_click_element(
+                        page, grid_cells[target_idx],
+                    )
+                else:
+                    await self._human_click_element(
+                        page, grid_cells[min(len(grid_cells) - 1, target_idx)],
+                    )
+            else:
+                # No grid found — try confirm button for default table
+                confirm = await page.query_selector(
+                    ".se-table-size-confirm, "
+                    'button[class*="confirm"]',
+                )
+                if confirm:
+                    await confirm.click()
+
+            await page.wait_for_timeout(500)
+
+            # Fill cells: headers first, then data rows (Tab between cells)
+            all_cells: list[str] = []
+            if headers:
+                all_cells.extend(headers)
+            for row in rows:
+                # Pad/truncate row to match column count
+                padded = (list(row) + [""] * cols)[:cols]
+                all_cells.extend(str(c) for c in padded)
+
+            for i, cell_text in enumerate(all_cells):
+                if i > 0:
+                    await page.keyboard.press("Tab")
+                    await page.wait_for_timeout(50)
+                await page.keyboard.type(cell_text)
+                await page.wait_for_timeout(50)
+
+            # Exit table: arrow down + Enter
+            for _ in range(3):
+                await page.keyboard.press("ArrowDown")
+                await page.wait_for_timeout(100)
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(200)
+            await self._ensure_plain_style(page)
+            await page.keyboard.press("Enter")
+
+        except Exception as exc:
+            logger.warning("block_table_failed", error=str(exc))
+            await self._table_as_paragraph(page, headers, rows)
+
+    async def _table_as_paragraph(
+        self,
+        page: Page,
+        headers: list[str],
+        rows: list[list[str]],
+    ) -> None:
+        """Fallback: render table data as pipe-separated text."""
+        await self._ensure_left_align(page)
+        if headers:
+            await self._human_type(page, " | ".join(headers))
+            await page.keyboard.press("Enter")
+        for row in rows:
+            await self._human_type(page, " | ".join(str(c) for c in row))
+            await page.keyboard.press("Enter")
+        await page.keyboard.press("Enter")
 
     # --- divider -------------------------------------------------------
 
