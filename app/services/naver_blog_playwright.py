@@ -60,8 +60,10 @@ class NaverBlogPlaywright:
         session_path: str | None = None,
     ) -> None:
         settings = get_settings()
-        self.blog_id = blog_id or settings.naver_blog_id or ""
-        self.session_path = Path(session_path or settings.naver_session_path)
+        self.blog_id = blog_id if blog_id is not None else (settings.naver_blog_id or "")
+        self.session_path = Path(
+            session_path if session_path is not None else settings.naver_session_path,
+        )
 
     # ------------------------------------------------------------------
     # Session management
@@ -74,10 +76,11 @@ class NaverBlogPlaywright:
     async def setup_session(self) -> None:
         """Open a visible browser for the user to log in manually.
 
-        After login is detected (URL leaves nidlogin), the session state
-        is saved to *session_path* for later reuse.
+        After login is detected the session state is saved to
+        *session_path* for later reuse.  Session is **not** saved if
+        login is not confirmed within the timeout.
         """
-        from playwright_stealth import stealth_async
+        from playwright_stealth import Stealth
 
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(
@@ -91,35 +94,52 @@ class NaverBlogPlaywright:
                 user_agent=_USER_AGENT,
             )
             page = await context.new_page()
-            await stealth_async(page)
+            await Stealth().apply_stealth_async(page)
             await page.add_init_script(_ANTI_DETECT_SCRIPT)
 
-            await page.goto("https://nid.naver.com/nidlogin.login")
+            await page.goto(
+                "https://nid.naver.com/nidlogin.login",
+                wait_until="domcontentloaded",
+            )
             logger.info("naver_login_browser_opened")
 
             # Poll for login completion (max 5 minutes)
+            _LOGIN_PATHS = ("nidlogin", "/nidlogin.login")
             logged_in = False
-            for _ in range(300):
+            for tick in range(300):
                 await page.wait_for_timeout(1000)
                 try:
                     url = page.url
-                    if "naver.com" in url and "nidlogin" not in url:
+                    # Logged in = left the login page entirely
+                    if "naver.com" in url and not any(p in url for p in _LOGIN_PATHS):
+                        logged_in = True
+                        break
+                    # Also detect NID cookie as fallback
+                    cookies = await context.cookies("https://naver.com")
+                    if any(c["name"] == "NID_AUT" for c in cookies):
                         logged_in = True
                         break
                 except Exception:
                     break
 
-            if logged_in:
-                # Navigate to blog to fully establish cookies
-                try:
-                    await page.goto(
-                        "https://blog.naver.com/",
-                        wait_until="domcontentloaded",
-                        timeout=10_000,
-                    )
-                    await page.wait_for_timeout(2000)
-                except Exception:
-                    pass
+                if tick % 30 == 0 and tick > 0:
+                    logger.info("naver_login_waiting", elapsed_seconds=tick)
+
+            if not logged_in:
+                logger.warning("naver_login_timeout")
+                await browser.close()
+                return
+
+            # Navigate to blog to fully establish cookies
+            try:
+                await page.goto(
+                    "https://blog.naver.com/",
+                    wait_until="domcontentloaded",
+                    timeout=15_000,
+                )
+                await page.wait_for_timeout(2000)
+            except Exception:
+                pass
 
             self.session_path.parent.mkdir(parents=True, exist_ok=True)
             await context.storage_state(path=str(self.session_path))
@@ -154,7 +174,7 @@ class NaverBlogPlaywright:
         if not self.blog_id:
             return {"success": False, "error": "NAVER_BLOG_ID not configured."}
 
-        from playwright_stealth import stealth_async
+        from playwright_stealth import Stealth
 
         # Resolve images: download URLs to temp files
         local_images: list[Path] = []
@@ -183,7 +203,7 @@ class NaverBlogPlaywright:
                     user_agent=_USER_AGENT,
                 )
                 page = await context.new_page()
-                await stealth_async(page)
+                await Stealth().apply_stealth_async(page)
                 await page.add_init_script(_ANTI_DETECT_SCRIPT)
 
                 # Step 1: Open editor

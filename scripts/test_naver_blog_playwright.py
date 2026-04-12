@@ -26,10 +26,17 @@ async def cmd_login() -> None:
 
     client = NaverBlogPlaywright()
     print(f"Session path: {client.session_path}")
-    print("Opening browser for manual login...")
-    print("Log in to Naver, then the session will be saved automatically.\n")
+    print("=" * 50)
+    print("Chromium 브라우저가 열립니다.")
+    print("네이버 로그인 페이지에서 직접 로그인해주세요.")
+    print("로그인 완료 후 자동으로 세션이 저장됩니다.")
+    print("제한시간: 5분")
+    print("=" * 50)
     await client.setup_session()
-    print(f"\nSession saved: {client.has_session()}")
+    if client.has_session():
+        print("\n[OK] Session saved!")
+    else:
+        print("\n[FAIL] Login failed or timed out. Try again.")
 
 
 async def cmd_post() -> None:
