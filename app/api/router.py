@@ -17,6 +17,7 @@ from app.api.v1 import (
     notification_prefs,
     notifications,
     onboarding,
+    pipeline,
     posts,
     predict,
     privacy,
@@ -64,3 +65,4 @@ api_router.include_router(ytboost.router)
 api_router.include_router(ytboost_analytics.router)
 api_router.include_router(shopsync.router)
 api_router.include_router(sheets_upload.router)
+api_router.include_router(pipeline.router)
