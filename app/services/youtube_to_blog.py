@@ -15,7 +15,7 @@ import httpx
 from app.config import get_settings
 from app.core.claude_utils import extract_claude_text, parse_claude_json
 from app.core.logging_config import get_logger
-from app.services.blog_image_generator import download_pollinations_image
+from app.services.blog_image_generator import generate_image
 from app.services.naver_blog_playwright import NaverBlogPlaywright
 from app.services.youtube_transcript import (
     TranscriptError,
@@ -377,7 +377,7 @@ class YouTubeToBlogPipeline:
             if block.get("type") == "image" and block.get("prompt"):
                 dest = temp_dir / f"pipe_img_{img_idx}.jpg"
                 try:
-                    path = await download_pollinations_image(block["prompt"], dest)
+                    path = await generate_image(block["prompt"], dest)
                     if path:
                         rendered.append({
                             "type": "image",

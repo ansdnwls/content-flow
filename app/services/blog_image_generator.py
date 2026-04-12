@@ -1,12 +1,14 @@
-"""Generate blog images via Claude prompt creation + pollinations.ai rendering.
+"""Generate blog images via Gemini (primary) + pollinations.ai (fallback).
 
 Flow:
 1. Claude generates 2 English image prompts from blog title/content
-2. pollinations.ai renders each prompt into an image (free, no API key)
-3. Images are saved to a temp directory for upload
+2. Gemini 3.1 Flash (Nano Banana 2) renders each prompt (primary)
+3. pollinations.ai as fallback if Gemini fails
+4. Images are saved to a temp directory for upload
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -145,6 +147,67 @@ async def download_pollinations_image(
     return None
 
 
+async def generate_gemini_image(
+    prompt: str,
+    dest: Path,
+) -> Path | None:
+    """Generate an image using Gemini 3.1 Flash (Nano Banana 2).
+
+    Returns the saved file path, or None on failure.
+    """
+    settings = get_settings()
+    if not settings.google_ai_api_key:
+        logger.debug("gemini_image_skip_no_api_key")
+        return None
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=settings.google_ai_api_key)
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-3.1-flash-image-preview",
+            contents=f"Generate an image: {prompt}",
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+            ),
+        )
+
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.data:
+                    dest.write_bytes(part.inline_data.data)
+                    logger.info(
+                        "gemini_image_generated",
+                        path=str(dest),
+                        size=len(part.inline_data.data),
+                    )
+                    return dest
+
+        logger.warning("gemini_image_no_result")
+    except Exception as exc:
+        logger.warning("gemini_image_failed", error=str(exc))
+
+    return None
+
+
+async def generate_image(
+    prompt: str,
+    dest: Path,
+) -> Path | None:
+    """Generate an image: try Gemini first, fall back to pollinations.ai.
+
+    Returns the saved file path, or None on failure.
+    """
+    result = await generate_gemini_image(prompt, dest)
+    if result:
+        return result
+
+    logger.info("gemini_fallback_to_pollinations", prompt=prompt[:50])
+    return await download_pollinations_image(prompt, dest)
+
+
 async def generate_blog_images(
     title: str,
     content: str,
@@ -163,7 +226,7 @@ async def generate_blog_images(
 
     for i, prompt in enumerate(prompts):
         dest = temp_dir / f"blog_image_{i}.jpg"
-        result = await download_pollinations_image(prompt, dest)
+        result = await generate_image(prompt, dest)
         if result:
             images.append(result)
 
@@ -242,7 +305,7 @@ async def generate_structured_content(
     for block in blocks:
         if block.get("type") == "image" and block.get("prompt"):
             dest = temp_dir / f"struct_img_{img_idx}.jpg"
-            result = await download_pollinations_image(block["prompt"], dest)
+            result = await generate_image(block["prompt"], dest)
             if result:
                 rendered_blocks.append({
                     "type": "image",
