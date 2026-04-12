@@ -260,10 +260,16 @@ class YouTubeToBlogPipeline:
         if not self._settings.anthropic_api_key:
             raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
+        _MAX_TRANSCRIPT_CHARS = 3000
+        if len(transcript_text) > _MAX_TRANSCRIPT_CHARS:
+            truncated = transcript_text[:_MAX_TRANSCRIPT_CHARS] + "...(이하 생략)"
+        else:
+            truncated = transcript_text
+
         user_msg = (
             f"YouTube Video ID: {video_id}\n"
             f"YouTube URL: https://www.youtube.com/watch?v={video_id}\n\n"
-            f"Transcript:\n{transcript_text}"
+            f"Transcript:\n{truncated}"
         )
 
         async with httpx.AsyncClient(timeout=60.0) as client:
