@@ -187,14 +187,14 @@ class NaverBlogPlaywright:
 
         for px, py in _bezier_curve(sx, sy, x, y):
             await page.mouse.move(px, py)
-            await page.wait_for_timeout(random.randint(5, 15))
+            await page.wait_for_timeout(random.randint(3, 8))
         await page.evaluate(f"window._mx={x}; window._my={y};")
-        await page.wait_for_timeout(random.randint(50, 150))
+        await page.wait_for_timeout(random.randint(20, 60))
 
     async def _human_click(self, page: Page, x: float, y: float) -> None:
         await self._human_move(page, x, y)
         await page.mouse.click(x, y)
-        await page.wait_for_timeout(random.randint(100, 300))
+        await page.wait_for_timeout(random.randint(50, 150))
 
     async def _human_click_element(self, page: Page, el: Any) -> None:
         try:
@@ -207,7 +207,7 @@ class NaverBlogPlaywright:
         except Exception:
             pass
         await el.click()
-        await page.wait_for_timeout(random.randint(100, 300))
+        await page.wait_for_timeout(random.randint(50, 150))
 
     async def _human_type(self, page: Page, text: str) -> None:
         """Type text with human-like timing and occasional typos."""
@@ -215,7 +215,7 @@ class NaverBlogPlaywright:
         for wi, word in enumerate(words):
             if wi > 0:
                 await page.keyboard.type(" ")
-                await page.wait_for_timeout(random.randint(50, 150))
+                await page.wait_for_timeout(random.randint(20, 60))
             if (
                 random.random() < 0.05
                 and len(word) > 2
@@ -225,14 +225,14 @@ class NaverBlogPlaywright:
                 typo_char = random.choice("abcdefghijklmnop")
                 pos = random.randint(1, len(word) - 1)
                 wrong = word[:pos] + typo_char + word[pos:]
-                await page.keyboard.type(wrong, delay=random.randint(40, 90))
-                await page.wait_for_timeout(random.randint(150, 250))
+                await page.keyboard.type(wrong, delay=random.randint(15, 40))
+                await page.wait_for_timeout(random.randint(60, 120))
                 for _ in range(len(wrong)):
                     await page.keyboard.press("Backspace")
-                await page.wait_for_timeout(random.randint(80, 200))
-            await page.keyboard.type(word, delay=random.randint(40, 100))
+                await page.wait_for_timeout(random.randint(30, 80))
+            await page.keyboard.type(word, delay=random.randint(20, 60))
             if word and word[-1] in ".!?":
-                await page.wait_for_timeout(random.randint(300, 800))
+                await page.wait_for_timeout(random.randint(100, 300))
 
     async def _human_scroll(self, page: Page, total_px: int) -> None:
         direction = 1 if total_px > 0 else -1
@@ -241,10 +241,10 @@ class NaverBlogPlaywright:
             step = min(remaining, random.randint(80, 180))
             await page.mouse.wheel(0, step * direction)
             remaining -= step
-            await page.wait_for_timeout(random.randint(40, 90))
+            await page.wait_for_timeout(random.randint(20, 50))
 
     async def _random_wait(
-        self, page: Page, low: int = 1000, high: int = 3000,
+        self, page: Page, low: int = 500, high: int = 1000,
     ) -> None:
         await page.wait_for_timeout(random.randint(low, high))
 
@@ -377,7 +377,7 @@ class NaverBlogPlaywright:
         try:
             async with async_playwright() as pw:
                 browser = await pw.chromium.launch(
-                    headless=False, slow_mo=60, args=_BROWSER_ARGS,
+                    headless=False, slow_mo=30, args=_BROWSER_ARGS,
                 )
                 context = await browser.new_context(
                     storage_state=str(self.session_path),
@@ -389,7 +389,7 @@ class NaverBlogPlaywright:
                 await page.add_init_script(_ANTI_DETECT_SCRIPT)
 
                 await self._open_editor(page)
-                await self._random_wait(page, 1000, 2500)
+                await self._random_wait(page, 500, 1000)
 
                 await self._input_title(page, title)
                 await page.keyboard.press("Tab")
@@ -407,7 +407,7 @@ class NaverBlogPlaywright:
                     await self._input_hashtags(page, tags)
 
                 published = await self._publish(page)
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(1500)
                 final_url = page.url
 
                 success = published and (
@@ -484,49 +484,94 @@ class NaverBlogPlaywright:
             f"https://blog.naver.com/{self.blog_id}/postwrite",
             timeout=30_000,
         )
-        await page.wait_for_timeout(5000)
+        await page.wait_for_timeout(2500)
         try:
             cancel = await page.query_selector(".se-popup-button-cancel")
             if cancel:
                 await self._human_click_element(page, cancel)
-                await page.wait_for_timeout(1000)
+                await page.wait_for_timeout(500)
         except Exception:
             pass
         logger.info("naver_editor_opened")
 
     async def _input_title(self, page: Page, title: str) -> None:
+        # Truncate title to 90 chars (Naver limit)
+        if len(title) > 90:
+            title = title[:87] + "..."
+
         title_el = await page.query_selector(
-            ".se-documentTitle .se-text-paragraph",
+            ".se-documentTitle .se-text-paragraph span",
         )
+        if not title_el:
+            title_el = await page.query_selector(
+                ".se-documentTitle .se-text-paragraph",
+            )
         if title_el:
             await self._human_click_element(page, title_el)
         else:
             await self._human_click(page, 640, 130)
-        await page.wait_for_timeout(300)
+        await page.wait_for_timeout(150)
         await self._human_type(page, title)
+        # Move focus to body area explicitly
+        body_el = await page.query_selector(
+            ".se-component-content .se-text-paragraph",
+        )
+        if body_el:
+            await self._human_click_element(page, body_el)
+        else:
+            await page.keyboard.press("Tab")
+        await page.wait_for_timeout(150)
         logger.info("naver_title_entered", title=title[:50])
 
     async def _upload_one_image(self, page: Page, image_path: Path) -> bool:
         try:
             image_btn = await page.query_selector('button[data-name="image"]')
             if not image_btn:
+                logger.warning("naver_image_btn_not_found")
                 return False
+
+            # Verify this is actually the image toolbar button
+            btn_text = await image_btn.get_attribute("data-name")
+            if btn_text != "image":
+                logger.warning("naver_image_btn_mismatch", data_name=btn_text)
+                return False
+
             await self._human_click_element(page, image_btn)
-            await page.wait_for_timeout(500)
-            async with page.expect_file_chooser(timeout=5000) as fc_info:
-                pc_btn = await page.query_selector(
-                    'button[class*="pc_upload"], li[data-type="local"] button',
-                )
-                if pc_btn:
+            await page.wait_for_timeout(300)
+
+            # Find the PC upload button before expecting file chooser
+            pc_btn = await page.query_selector(
+                'li[data-type="local"] button, '
+                'button[class*="pc_upload"], '
+                '[class*="local_upload"] button',
+            )
+            if not pc_btn:
+                # No PC upload option found — close panel and skip
+                logger.warning("naver_image_pc_btn_not_found")
+                await page.keyboard.press("Escape")
+                await page.wait_for_timeout(200)
+                return False
+
+            # Now expect file chooser and click the PC upload button
+            try:
+                async with page.expect_file_chooser(timeout=3000) as fc_info:
                     await pc_btn.click()
-                else:
-                    await image_btn.click()
-            file_chooser = await fc_info.value
-            await file_chooser.set_files(str(image_path))
-            await page.wait_for_timeout(3000)
-            return True
+                file_chooser = await fc_info.value
+                await file_chooser.set_files(str(image_path))
+                await page.wait_for_timeout(1500)
+                return True
+            except TimeoutError:
+                logger.warning("naver_image_file_chooser_timeout")
+                await page.keyboard.press("Escape")
+                await page.wait_for_timeout(200)
+                return False
         except Exception as exc:
             logger.warning("naver_image_upload_failed", error=str(exc))
+            # Try to dismiss any open dialog
+            try:
+                await page.keyboard.press("Escape")
+            except Exception:
+                pass
             return False
 
     # ------------------------------------------------------------------
@@ -544,7 +589,7 @@ class NaverBlogPlaywright:
                     uploaded += 1
             if i < len(sections):
                 await self._type_section(page, sections[i])
-                await self._random_wait(page, 200, 500)
+                await self._random_wait(page, 100, 250)
         logger.info(
             "naver_body_written",
             sections=len(sections), images_uploaded=uploaded,
@@ -598,7 +643,7 @@ class NaverBlogPlaywright:
                 stats[btype] = stats.get(btype, 0) + 1
             except Exception as exc:
                 logger.warning("block_failed", type=btype, error=str(exc))
-            await self._random_wait(page, 200, 600)
+            await self._random_wait(page, 100, 300)
 
         logger.info("naver_blocks_written", stats=stats)
 
@@ -681,7 +726,7 @@ class NaverBlogPlaywright:
         for i, sentence in enumerate(sentences):
             if i > 0:
                 await page.keyboard.type(" ")
-                await self._random_wait(page, 200, 500)
+                await self._random_wait(page, 100, 250)
             await self._human_type(page, sentence.strip())
         # Double Enter for mobile spacing
         await page.keyboard.press("Enter")
@@ -721,11 +766,11 @@ class NaverBlogPlaywright:
             )
             if quote_btn:
                 await self._human_click_element(page, quote_btn)
-                await page.wait_for_timeout(600)
+                await page.wait_for_timeout(300)
 
                 # Try to pick a style from the quote style selector
                 await self._select_quote_style(page, style)
-                await page.wait_for_timeout(400)
+                await page.wait_for_timeout(200)
                 inserted = True
         except Exception:
             pass
@@ -937,7 +982,7 @@ class NaverBlogPlaywright:
                 await page.wait_for_timeout(200)
 
         await self._human_scroll(page, -2000)
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(300)
 
         header_btn = await page.query_selector(
             'button[class*="publish_btn"], header button[class*="publish"]',
@@ -946,7 +991,7 @@ class NaverBlogPlaywright:
             await self._human_click_element(page, header_btn)
         else:
             await self._human_click(page, 1810, 22)
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(1000)
 
         confirm_selectors = [
             'button[class*="confirm_btn"]',
@@ -958,7 +1003,7 @@ class NaverBlogPlaywright:
                 btn = await page.query_selector(sel)
                 if btn and await btn.is_visible():
                     await self._human_click_element(page, btn)
-                    await page.wait_for_timeout(5000)
+                    await page.wait_for_timeout(2500)
                     return True
             except Exception:
                 continue
@@ -969,11 +1014,11 @@ class NaverBlogPlaywright:
             if text and "\ubc1c\ud589" in text and "\uc608\uc57d" not in text:
                 if await btn.is_visible():
                     await self._human_click_element(page, btn)
-                    await page.wait_for_timeout(5000)
+                    await page.wait_for_timeout(2500)
                     return True
 
         await self._human_click(page, 480, 455)
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(1000)
         await self._human_click(page, 470, 450)
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(1500)
         return True
