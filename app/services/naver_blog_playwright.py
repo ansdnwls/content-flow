@@ -388,6 +388,19 @@ class NaverBlogPlaywright:
                 await Stealth().apply_stealth_async(page)
                 await page.add_init_script(_ANTI_DETECT_SCRIPT)
 
+                # Guard: auto-dismiss unexpected file chooser dialogs
+                self._expecting_file_chooser = False
+
+                async def _on_filechooser(fc: Any) -> None:
+                    if not self._expecting_file_chooser:
+                        logger.warning("unexpected_filechooser_dismissed")
+                        try:
+                            await fc.page.keyboard.press("Escape")
+                        except Exception:
+                            pass
+
+                page.on("filechooser", _on_filechooser)
+
                 await self._open_editor(page)
                 await self._random_wait(page, 500, 1000)
 
@@ -485,6 +498,10 @@ class NaverBlogPlaywright:
             timeout=30_000,
         )
         await page.wait_for_timeout(2500)
+
+        # --- Session expiry: detect login redirect and wait ---
+        await self._wait_for_login_if_needed(page)
+
         try:
             cancel = await page.query_selector(".se-popup-button-cancel")
             if cancel:
@@ -493,6 +510,48 @@ class NaverBlogPlaywright:
         except Exception:
             pass
         logger.info("naver_editor_opened")
+
+    async def _wait_for_login_if_needed(self, page: Page) -> None:
+        """If the page redirected to login, wait for manual login up to 120s."""
+        url = page.url
+        if "nid.naver.com" not in url and "login" not in url:
+            return
+
+        logger.warning("naver_session_expired", url=url)
+        print(
+            "\n"
+            "============================================================\n"
+            "  로그인이 필요합니다. 브라우저에서 직접 로그인해주세요.\n"
+            "  (최대 120초 대기)\n"
+            "============================================================\n"
+        )
+
+        _MAX_WAIT = 120
+        _POLL_INTERVAL = 5
+        elapsed = 0
+        while elapsed < _MAX_WAIT:
+            await page.wait_for_timeout(_POLL_INTERVAL * 1000)
+            elapsed += _POLL_INTERVAL
+            current = page.url
+            if "blog.naver.com" in current and "login" not in current:
+                logger.info("naver_login_completed", elapsed=elapsed)
+                # Save refreshed session
+                context = page.context
+                await context.storage_state(path=str(self.session_path))
+                logger.info("naver_session_refreshed")
+                # Re-navigate to editor
+                await page.goto(
+                    f"https://blog.naver.com/{self.blog_id}/postwrite",
+                    timeout=30_000,
+                )
+                await page.wait_for_timeout(2500)
+                return
+            if elapsed % 15 == 0:
+                logger.info("naver_login_waiting", elapsed=elapsed)
+
+        raise RuntimeError(
+            f"Login timeout: waited {_MAX_WAIT}s but still on login page",
+        )
 
     async def _input_title(self, page: Page, title: str) -> None:
         # Truncate title to 90 chars (Naver limit)
@@ -578,18 +637,22 @@ class NaverBlogPlaywright:
 
             # Now expect file chooser and click the PC upload button
             try:
+                self._expecting_file_chooser = True
                 async with page.expect_file_chooser(timeout=3000) as fc_info:
                     await pc_btn.click()
                 file_chooser = await fc_info.value
                 await file_chooser.set_files(str(image_path))
+                self._expecting_file_chooser = False
                 await page.wait_for_timeout(1500)
                 return True
             except TimeoutError:
+                self._expecting_file_chooser = False
                 logger.warning("naver_image_file_chooser_timeout")
                 await page.keyboard.press("Escape")
                 await page.wait_for_timeout(200)
                 return False
         except Exception as exc:
+            self._expecting_file_chooser = False
             logger.warning("naver_image_upload_failed", error=str(exc))
             # Try to dismiss any open dialog
             try:
