@@ -124,7 +124,7 @@ class TestYouTubeToBlogPipeline:
             result = await pipeline.run("https://youtube.com/watch?v=test123")
 
         assert result.success is False
-        assert "Claude conversion failed" in result.error
+        assert "Claude conversion failed (RuntimeError)" in result.error
 
     @pytest.mark.asyncio
     @patch("app.services.youtube_to_blog.NaverBlogPlaywright")

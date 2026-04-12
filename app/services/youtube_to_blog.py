@@ -131,11 +131,17 @@ class YouTubeToBlogPipeline:
         try:
             blog_data = await self.convert_to_blog(truncated, video_id)
         except Exception as exc:
-            logger.error("pipeline_claude_failed", video_id=video_id, error=str(exc))
+            err_detail = str(exc) or repr(exc)
+            logger.error(
+                "pipeline_claude_failed",
+                video_id=video_id,
+                error=err_detail,
+                error_type=type(exc).__name__,
+            )
             return PipelineResult(
                 success=False,
                 video_id=video_id,
-                error=f"Claude conversion failed: {exc}",
+                error=f"Claude conversion failed ({type(exc).__name__}): {err_detail}",
             )
 
         title: str = blog_data.get("title", "")
@@ -193,10 +199,11 @@ class YouTubeToBlogPipeline:
         try:
             blog_data = await self.convert_to_blog(truncated, video_id)
         except Exception as exc:
+            err_detail = str(exc) or repr(exc)
             return PipelineResult(
                 success=False,
                 video_id=video_id,
-                error=f"Claude conversion failed: {exc}",
+                error=f"Claude conversion failed ({type(exc).__name__}): {err_detail}",
             )
 
         title = blog_data.get("title", "")
