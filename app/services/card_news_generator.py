@@ -157,6 +157,18 @@ def _page_num_html(index: int, total: int, color: str) -> str:
     )
 
 
+def _title_size(text: str, base: int) -> int:
+    """Auto-scale title font size based on character count."""
+    length = len(text)
+    if length <= 10:
+        return base
+    if length <= 15:
+        return max(base - 6, 28)
+    if length <= 20:
+        return max(base - 12, 28)
+    return max(base - 18, 28)
+
+
 def _accent_line(color: str = _ACCENT_BLUE, centered: bool = False) -> str:
     """Accent line under title."""
     margin = "16px auto 20px" if centered else "16px 0 20px"
@@ -179,7 +191,8 @@ def _wrap_html(card_body: str) -> str:
         '<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@700;900'
         '&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">\n'
         '<style>\n'
-        f'* {{ margin:0; padding:0; box-sizing:border-box; }}\n'
+        f'* {{ margin:0; padding:0; box-sizing:border-box; '
+        f'word-break:keep-all; overflow-wrap:break-word; }}\n'
         f'body {{ width:{w}px; height:{h}px; overflow:hidden; '
         f"font-family:'Noto Sans KR',sans-serif; }}\n"
         '</style>\n'
@@ -214,7 +227,7 @@ def _build_cover(card: CardSpec, img_uri: str, total: int, channel: str) -> str:
         f'color:rgba(255,255,255,0.8);letter-spacing:1px;">{_esc(channel)}</div>\n'
         # Title + body (bottom)
         f'  <div style="position:absolute;bottom:120px;left:{pad}px;right:{pad}px;">\n'
-        f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:56px;font-weight:900;'
+        f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 56)}px;font-weight:900;'
         f'color:#FFFFFF;line-height:1.2;">{_esc(card.title)}</div>\n'
         f'    {_accent_line(_ACCENT_BLUE)}'
         f'    <div style="font-size:36px;font-weight:300;color:rgba(255,255,255,0.85);'
@@ -248,7 +261,7 @@ def _build_content(card: CardSpec, img_uri: str, total: int) -> str:
         # Left text panel (48%)
         f'  <div style="width:48%;background:{bg_color};padding:80px {pad}px;'
         f'display:flex;flex-direction:column;justify-content:center;position:relative;">\n'
-        f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:44px;font-weight:900;'
+        f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 44)}px;font-weight:900;'
         f'color:#FAFAFA;line-height:1.25;">{_esc(card.title)}</div>\n'
         f'    {_accent_line(_ACCENT_BLUE)}'
         f'    <div style="font-size:34px;font-weight:300;color:rgba(250,250,250,0.8);'
@@ -271,7 +284,7 @@ def _build_tip(card: CardSpec, total: int) -> str:
         f'text-align:center;padding:{pad}px;'
         f'background:linear-gradient(135deg,#f7971e 0%,#ffd200 100%);">\n'
         # Title (may contain emoji)
-        f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:52px;font-weight:900;'
+        f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 52)}px;font-weight:900;'
         f'color:#2a1a00;line-height:1.25;">{_esc(card.title)}</div>\n'
         f'  {_accent_line("#2a1a00", centered=True)}'
         f'  <div style="font-size:36px;font-weight:400;color:#3d2800;'
@@ -290,7 +303,7 @@ def _build_closing(card: CardSpec, total: int) -> str:
         f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
         f'text-align:center;padding:{pad}px;'
         f'background:linear-gradient(180deg,#0a0a0a 0%,#1a1a1a 100%);">\n'
-        f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:52px;font-weight:900;'
+        f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 52)}px;font-weight:900;'
         f'color:#FAFAFA;line-height:1.3;">{_esc(card.title)}</div>\n'
         f'  {_accent_line(_ACCENT_BLUE, centered=True)}'
         f'  <div style="font-size:36px;font-weight:300;color:rgba(250,250,250,0.8);'
@@ -313,7 +326,7 @@ def _build_cta(card: CardSpec, total: int, channel: str) -> str:
         f'  <div style="font-size:30px;font-weight:500;color:rgba(255,255,255,0.7);'
         f'letter-spacing:1px;margin-bottom:32px;">{_esc(channel)}</div>\n'
         # Title
-        f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:52px;font-weight:900;'
+        f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 52)}px;font-weight:900;'
         f'color:#FFFFFF;line-height:1.3;">{_esc(card.title)}</div>\n'
         f'  {_accent_line("#FFFFFF", centered=True)}'
         # Body
