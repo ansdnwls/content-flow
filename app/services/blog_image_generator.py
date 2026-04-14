@@ -1,9 +1,9 @@
-"""Generate blog images via Gemini (primary) + pollinations.ai (fallback).
+"""Generate blog images via Vertex AI Imagen (primary) + pollinations.ai (fallback).
 
 Flow:
 1. Claude generates 2 English image prompts from blog title/content
-2. Gemini 3.1 Flash (Nano Banana 2) renders each prompt (primary)
-3. pollinations.ai as fallback if Gemini fails
+2. Vertex AI Imagen 3.0 Fast renders each prompt (primary, uses GCP credits)
+3. pollinations.ai as fallback if Vertex AI fails
 4. Images are saved to a temp directory for upload
 """
 from __future__ import annotations
@@ -147,47 +147,69 @@ async def download_pollinations_image(
     return None
 
 
+_VERTEX_PROJECT = "ytfactory-487714"
+_VERTEX_LOCATION = "us-central1"
+_VERTEX_MODEL = "imagen-3.0-fast-generate-001"
+
+
 async def generate_gemini_image(
     prompt: str,
     dest: Path,
+    *,
+    aspect_ratio: str = "4:5",
 ) -> Path | None:
-    """Generate an image using Gemini 3.1 Flash (Nano Banana 2).
+    """Generate an image using Vertex AI Imagen 3.0 Fast.
 
-    Returns the saved file path, or None on failure.
+    Uses GCP service account credentials for billing via Cloud credits.
+    Falls back to None on failure (caller handles fallback chain).
+
+    Args:
+        prompt: English image prompt.
+        dest: Destination file path for the generated image.
+        aspect_ratio: Image aspect ratio (default "4:5" for 1080x1350 cards).
     """
     settings = get_settings()
-    if not settings.google_ai_api_key:
-        logger.debug("gemini_image_skip_no_api_key")
+    sa_path = settings.google_service_account_json_path
+    if not sa_path or not Path(sa_path).exists():
+        logger.debug("vertex_image_skip_no_sa", path=sa_path)
         return None
 
     try:
-        from google import genai
-        from google.genai import types
+        from google.oauth2 import service_account
+        import vertexai
+        from vertexai.preview.vision_models import ImageGenerationModel
 
-        client = genai.Client(api_key=settings.google_ai_api_key)
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-3.1-flash-image-preview",
-            contents=f"Generate an image: {prompt}",
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-            ),
+        credentials = service_account.Credentials.from_service_account_file(sa_path)
+
+        await asyncio.to_thread(
+            vertexai.init,
+            project=_VERTEX_PROJECT,
+            location=_VERTEX_LOCATION,
+            credentials=credentials,
         )
 
-        if response.candidates and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.inline_data and part.inline_data.data:
-                    dest.write_bytes(part.inline_data.data)
-                    logger.info(
-                        "gemini_image_generated",
-                        path=str(dest),
-                        size=len(part.inline_data.data),
-                    )
-                    return dest
+        model = ImageGenerationModel.from_pretrained(_VERTEX_MODEL)
+        response = await asyncio.to_thread(
+            model.generate_images,
+            prompt=prompt,
+            number_of_images=1,
+            aspect_ratio=aspect_ratio,
+        )
 
-        logger.warning("gemini_image_no_result")
+        if response.images:
+            img_bytes = response.images[0]._image_bytes
+            dest.write_bytes(img_bytes)
+            logger.info(
+                "vertex_image_generated",
+                path=str(dest),
+                size=len(img_bytes),
+                model=_VERTEX_MODEL,
+            )
+            return dest
+
+        logger.warning("vertex_image_no_result")
     except Exception as exc:
-        logger.warning("gemini_image_failed", error=str(exc))
+        logger.warning("vertex_image_failed", error=str(exc))
 
     return None
 
@@ -195,16 +217,18 @@ async def generate_gemini_image(
 async def generate_image(
     prompt: str,
     dest: Path,
+    *,
+    aspect_ratio: str = "4:5",
 ) -> Path | None:
-    """Generate an image: try Gemini first, fall back to pollinations.ai.
+    """Generate an image: try Vertex AI Imagen first, fall back to pollinations.ai.
 
     Returns the saved file path, or None on failure.
     """
-    result = await generate_gemini_image(prompt, dest)
+    result = await generate_gemini_image(prompt, dest, aspect_ratio=aspect_ratio)
     if result:
         return result
 
-    logger.info("gemini_fallback_to_pollinations", prompt=prompt[:50])
+    logger.info("vertex_fallback_to_pollinations", prompt=prompt[:50])
     return await download_pollinations_image(prompt, dest)
 
 
