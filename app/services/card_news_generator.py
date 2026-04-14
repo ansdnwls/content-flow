@@ -55,6 +55,77 @@ class CardSpec:
 
 
 @dataclass
+class ColorTheme:
+    """Color theme for a card news set."""
+
+    name: str
+    bg_dark: str       # content card left panel, closing bg
+    bg_dark_alt: str   # alternating content bg
+    accent: str        # accent line, CTA gradient start
+    accent_end: str    # CTA gradient end
+    tip_start: str     # tip card gradient start
+    tip_end: str       # tip card gradient end
+    tip_text: str      # tip card text color
+    tip_accent: str    # tip card accent line color
+    cover_fallback: str  # cover fallback gradient (no image)
+
+
+_THEMES: dict[str, ColorTheme] = {
+    "legal": ColorTheme(
+        name="legal",
+        bg_dark="#0f1923", bg_dark_alt="#1a1a2e",
+        accent="#1a6cf5", accent_end="#0a3d91",
+        tip_start="#f7971e", tip_end="#ffd200",
+        tip_text="#2a1a00", tip_accent="#2a1a00",
+        cover_fallback="linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
+    ),
+    "finance": ColorTheme(
+        name="finance",
+        bg_dark="#0a1f0a", bg_dark_alt="#1a2e1a",
+        accent="#d4a017", accent_end="#8b6914",
+        tip_start="#d4a017", tip_end="#f5d060",
+        tip_text="#1a0f00", tip_accent="#1a0f00",
+        cover_fallback="linear-gradient(135deg,#0a1f0a 0%,#1a3a1a 50%,#0f3d0f 100%)",
+    ),
+    "health": ColorTheme(
+        name="health",
+        bg_dark="#0a0f1f", bg_dark_alt="#101a2e",
+        accent="#2dd4bf", accent_end="#0d9488",
+        tip_start="#2dd4bf", tip_end="#5eead4",
+        tip_text="#042f2e", tip_accent="#042f2e",
+        cover_fallback="linear-gradient(135deg,#0a0f1f 0%,#0f2942 50%,#0a3d5c 100%)",
+    ),
+    "tech": ColorTheme(
+        name="tech",
+        bg_dark="#0a0a0f", bg_dark_alt="#15152a",
+        accent="#8b5cf6", accent_end="#6d28d9",
+        tip_start="#8b5cf6", tip_end="#c4b5fd",
+        tip_text="#1e1033", tip_accent="#1e1033",
+        cover_fallback="linear-gradient(135deg,#0a0a0f 0%,#1a1a3e 50%,#2d1b69 100%)",
+    ),
+    "lifestyle": ColorTheme(
+        name="lifestyle",
+        bg_dark="#1a0f0a", bg_dark_alt="#2e1a10",
+        accent="#f97316", accent_end="#c2410c",
+        tip_start="#f97316", tip_end="#fdba74",
+        tip_text="#1c0800", tip_accent="#1c0800",
+        cover_fallback="linear-gradient(135deg,#1a0f0a 0%,#3d1f0a 50%,#5c2d0a 100%)",
+    ),
+    "news": ColorTheme(
+        name="news",
+        bg_dark="#111111", bg_dark_alt="#1a1a1a",
+        accent="#ef4444", accent_end="#b91c1c",
+        tip_start="#ef4444", tip_end="#fca5a5",
+        tip_text="#1c0000", tip_accent="#1c0000",
+        cover_fallback="linear-gradient(135deg,#111111 0%,#1a1a1a 50%,#2d1111 100%)",
+    ),
+}
+_THEMES["default"] = _THEMES["legal"]
+
+_VALID_THEMES = set(_THEMES.keys())
+
+
+@dataclass
 class CardNewsResult:
     """Result of the card news generation pipeline."""
 
@@ -62,6 +133,7 @@ class CardNewsResult:
     video_id: str = ""
     card_count: int = 0
     output_dir: str = ""
+    color_theme: str = "default"
     cards: list[CardSpec] = field(default_factory=list)
     image_paths: list[str] = field(default_factory=list)
     error: str = ""
@@ -74,6 +146,15 @@ class CardNewsResult:
 _CARD_PLANNING_SYSTEM = (
     "You are a Korean card news content planner for Instagram.\n"
     "Given a YouTube transcript, plan exactly 10 cards for a card news post.\n"
+    "\n"
+    "FIRST, analyze the topic and choose a color_theme:\n"
+    "- legal: 법률, 판례, 권리, 규정, 소송\n"
+    "- finance: 경제, 재테크, 투자, 주식, 부동산\n"
+    "- health: 건강, 의학, 운동, 다이어트, 웰빙\n"
+    "- tech: IT, 테크, AI, 프로그래밍, 앱\n"
+    "- lifestyle: 음식, 라이프, 여행, 요리, 취미\n"
+    "- news: 사회, 뉴스, 정치, 시사, 사건\n"
+    "- default: 위에 해당 없으면\n"
     "\n"
     "Card types (assign one per card):\n"
     "- cover: Card 1 only. Eye-catching title card with a hook.\n"
@@ -90,25 +171,28 @@ _CARD_PLANNING_SYSTEM = (
     "- closing card: emotional, reflective tone\n"
     "- cta card: body should say '자세한 내용은 유튜브에서 확인하세요'\n"
     "\n"
-    "Return a JSON array of 10 objects (no markdown fences):\n"
-    "[\n"
-    '  {"index": 1, "title": "cover title", "body": "subtitle or hook",\n'
-    '   "layout": "fullbleed", "image_prompt": "English prompt for 2K cinematic AI image, NO text in image",\n'
-    '   "card_type": "cover"},\n'
-    '  {"index": 2, "title": "section title", "body": "2-3 lines of content",\n'
-    '   "layout": "split", "image_prompt": "English prompt for 1K image...",\n'
-    '   "card_type": "content"},\n'
-    "  ...\n"
-    '  {"index": 8, "title": "💡 tip title", "body": "practical tip text",\n'
-    '   "layout": "textonly", "image_prompt": "",\n'
-    '   "card_type": "tip"},\n'
-    '  {"index": 9, "title": "closing title", "body": "emotional wrap-up",\n'
-    '   "layout": "textonly", "image_prompt": "",\n'
-    '   "card_type": "closing"},\n'
-    '  {"index": 10, "title": "CTA title", "body": "full video link invitation",\n'
-    '   "layout": "textonly", "image_prompt": "",\n'
-    '   "card_type": "cta"}\n'
-    "]\n"
+    "Return a JSON object (no markdown fences):\n"
+    "{\n"
+    '  "color_theme": "legal",\n'
+    '  "cards": [\n'
+    '    {"index": 1, "title": "cover title", "body": "subtitle or hook",\n'
+    '     "layout": "fullbleed", "image_prompt": "English prompt for 2K cinematic AI image, NO text in image",\n'
+    '     "card_type": "cover"},\n'
+    '    {"index": 2, "title": "section title", "body": "2-3 lines of content",\n'
+    '     "layout": "split", "image_prompt": "English prompt for 1K image...",\n'
+    '     "card_type": "content"},\n'
+    "    ...\n"
+    '    {"index": 8, "title": "💡 tip title", "body": "practical tip text",\n'
+    '     "layout": "textonly", "image_prompt": "",\n'
+    '     "card_type": "tip"},\n'
+    '    {"index": 9, "title": "closing title", "body": "emotional wrap-up",\n'
+    '     "layout": "textonly", "image_prompt": "",\n'
+    '     "card_type": "closing"},\n'
+    '    {"index": 10, "title": "CTA title", "body": "full video link invitation",\n'
+    '     "layout": "textonly", "image_prompt": "",\n'
+    '     "card_type": "cta"}\n'
+    "  ]\n"
+    "}\n"
     "\n"
     "Image prompt rules:\n"
     "- cover: MUST start with 'DO NOT include any text, letters, words, numbers, watermarks, logos.'\n"
@@ -208,32 +292,28 @@ def _wrap_html(card_body: str) -> str:
 # Card type builders
 # ---------------------------------------------------------------------------
 
-def _build_cover(card: CardSpec, img_uri: str, total: int, channel: str) -> str:
+def _build_cover(card: CardSpec, img_uri: str, total: int, channel: str, th: ColorTheme) -> str:
     """Cover card: fullbleed image + dark gradient overlay + channel name + swipe CTA."""
     w, h, pad = CARD_WIDTH, CARD_HEIGHT, _PAD_LR
     if img_uri:
         bg = f"background-image:url('{img_uri}');background-size:cover;background-position:center;"
     else:
-        bg = "background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);"
+        bg = f"background:{th.cover_fallback};"
 
     return (
         f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;{bg}">\n'
-        # Dark gradient overlay (bottom 60%)
         f'  <div style="position:absolute;bottom:0;left:0;right:0;height:60%;'
         f'background:linear-gradient(transparent 0%,rgba(10,10,10,0.7) 30%,rgba(10,10,10,0.92) 100%);"></div>\n'
-        # Channel name (top)
         f'  <div style="position:absolute;top:48px;left:{pad}px;'
         f"font-family:'Noto Sans KR',sans-serif;font-size:28px;font-weight:500;"
         f'color:rgba(255,255,255,0.8);letter-spacing:1px;">{_esc(channel)}</div>\n'
-        # Title + body (bottom)
         f'  <div style="position:absolute;bottom:120px;left:{pad}px;right:{pad}px;">\n'
         f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 56)}px;font-weight:900;'
         f'color:#FFFFFF;line-height:1.2;">{_esc(card.title)}</div>\n'
-        f'    {_accent_line(_ACCENT_BLUE)}'
+        f'    {_accent_line(th.accent)}'
         f'    <div style="font-size:36px;font-weight:300;color:rgba(255,255,255,0.85);'
         f'line-height:1.5;margin-top:8px;">{_esc(card.body)}</div>\n'
         f'  </div>\n'
-        # Swipe CTA (very bottom)
         f'  <div style="position:absolute;bottom:40px;left:50%;transform:translateX(-50%);'
         f'font-size:26px;font-weight:400;color:rgba(255,255,255,0.6);">'
         f'\U0001F446 \uc2a4\uc640\uc774\ud504\ud574\uc11c \ud655\uc778\ud558\uc138\uc694</div>\n'
@@ -241,60 +321,52 @@ def _build_cover(card: CardSpec, img_uri: str, total: int, channel: str) -> str:
     )
 
 
-def _build_content(card: CardSpec, img_uri: str, total: int) -> str:
-    """Content card: split layout - left text on dark navy, right image."""
+def _build_content(card: CardSpec, img_uri: str, total: int, th: ColorTheme) -> str:
+    """Content card: split layout - left text on themed dark, right image."""
     w, h, pad = CARD_WIDTH, CARD_HEIGHT, _PAD_LR
-    # Left side background alternates between navy and charcoal
-    bg_color = "#0f1923" if card.index % 2 == 0 else "#1a1a2e"
+    bg_color = th.bg_dark if card.index % 2 == 0 else th.bg_dark_alt
 
-    # Right side: image or gradient fallback
     if img_uri:
         right_bg = f"background-image:url('{img_uri}');background-size:cover;background-position:center;"
     else:
-        right_bg = (
-            f"background:linear-gradient(135deg,{bg_color} 0%,"
-            f"{'#1e3a5f' if bg_color == '#0f1923' else '#2d2d4e'} 100%);"
-        )
+        right_bg = f"background:linear-gradient(135deg,{bg_color} 0%,{th.bg_dark_alt} 100%);"
 
     return (
         f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;display:flex;">\n'
-        # Left text panel (48%)
         f'  <div style="width:48%;background:{bg_color};padding:80px {pad}px;'
         f'display:flex;flex-direction:column;justify-content:center;position:relative;">\n'
         f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 44)}px;font-weight:900;'
         f'color:#FAFAFA;line-height:1.25;">{_esc(card.title)}</div>\n'
-        f'    {_accent_line(_ACCENT_BLUE)}'
+        f'    {_accent_line(th.accent)}'
         f'    <div style="font-size:34px;font-weight:300;color:rgba(250,250,250,0.8);'
         f'line-height:1.55;">{_esc(card.body)}</div>\n'
         f'    {_page_num_html(card.index, total, "rgba(250,250,250,0.3)")}'
         f'  </div>\n'
-        # Right image panel (52%)
         f'  <div style="width:52%;{right_bg}"></div>\n'
         f'</div>\n'
     )
 
 
-def _build_tip(card: CardSpec, total: int) -> str:
-    """Tip/highlight card: gold-orange gradient, big emoji, centered text."""
+def _build_tip(card: CardSpec, total: int, th: ColorTheme) -> str:
+    """Tip/highlight card: themed gradient, big emoji, centered text."""
     w, h, pad = CARD_WIDTH, CARD_HEIGHT, _PAD_LR
 
     return (
         f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
         f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
         f'text-align:center;padding:{pad}px;'
-        f'background:linear-gradient(135deg,#f7971e 0%,#ffd200 100%);">\n'
-        # Title (may contain emoji)
+        f'background:linear-gradient(135deg,{th.tip_start} 0%,{th.tip_end} 100%);">\n'
         f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 52)}px;font-weight:900;'
-        f'color:#2a1a00;line-height:1.25;">{_esc(card.title)}</div>\n'
-        f'  {_accent_line("#2a1a00", centered=True)}'
-        f'  <div style="font-size:36px;font-weight:400;color:#3d2800;'
+        f'color:{th.tip_text};line-height:1.25;">{_esc(card.title)}</div>\n'
+        f'  {_accent_line(th.tip_accent, centered=True)}'
+        f'  <div style="font-size:36px;font-weight:400;color:{th.tip_text};opacity:0.85;'
         f'line-height:1.55;">{_esc(card.body)}</div>\n'
-        f'  {_page_num_html(card.index, total, "rgba(42,26,0,0.3)")}'
+        f'  {_page_num_html(card.index, total, f"{th.tip_text}40")}'
         f'</div>\n'
     )
 
 
-def _build_closing(card: CardSpec, total: int) -> str:
+def _build_closing(card: CardSpec, total: int, th: ColorTheme) -> str:
     """Closing card: dark background, white text, accent line."""
     w, h, pad = CARD_WIDTH, CARD_HEIGHT, _PAD_LR
 
@@ -302,10 +374,10 @@ def _build_closing(card: CardSpec, total: int) -> str:
         f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
         f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
         f'text-align:center;padding:{pad}px;'
-        f'background:linear-gradient(180deg,#0a0a0a 0%,#1a1a1a 100%);">\n'
+        f'background:linear-gradient(180deg,{th.bg_dark} 0%,{th.bg_dark_alt} 100%);">\n'
         f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 52)}px;font-weight:900;'
         f'color:#FAFAFA;line-height:1.3;">{_esc(card.title)}</div>\n'
-        f'  {_accent_line(_ACCENT_BLUE, centered=True)}'
+        f'  {_accent_line(th.accent, centered=True)}'
         f'  <div style="font-size:36px;font-weight:300;color:rgba(250,250,250,0.8);'
         f'line-height:1.6;">{_esc(card.body)}</div>\n'
         f'  {_page_num_html(card.index, total, "rgba(250,250,250,0.3)")}'
@@ -313,26 +385,22 @@ def _build_closing(card: CardSpec, total: int) -> str:
     )
 
 
-def _build_cta(card: CardSpec, total: int, channel: str) -> str:
-    """CTA card: blue gradient, channel name, YouTube link prompt."""
+def _build_cta(card: CardSpec, total: int, channel: str, th: ColorTheme) -> str:
+    """CTA card: themed gradient, channel name, YouTube link prompt."""
     w, h, pad = CARD_WIDTH, CARD_HEIGHT, _PAD_LR
 
     return (
         f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
         f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
         f'text-align:center;padding:{pad}px;'
-        f'background:linear-gradient(135deg,#1a6cf5 0%,#0a3d91 100%);">\n'
-        # Channel name
+        f'background:linear-gradient(135deg,{th.accent} 0%,{th.accent_end} 100%);">\n'
         f'  <div style="font-size:30px;font-weight:500;color:rgba(255,255,255,0.7);'
         f'letter-spacing:1px;margin-bottom:32px;">{_esc(channel)}</div>\n'
-        # Title
         f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:{_title_size(card.title, 52)}px;font-weight:900;'
         f'color:#FFFFFF;line-height:1.3;">{_esc(card.title)}</div>\n'
         f'  {_accent_line("#FFFFFF", centered=True)}'
-        # Body
         f'  <div style="font-size:36px;font-weight:300;color:rgba(255,255,255,0.9);'
         f'line-height:1.55;">{_esc(card.body)}</div>\n'
-        # Bottom CTA
         f'  <div style="position:absolute;bottom:48px;left:50%;transform:translateX(-50%);'
         f'font-size:26px;font-weight:400;color:rgba(255,255,255,0.6);">'
         f'\U0001F446 \ud504\ub85c\ud544 \ub9c1\ud06c \ud074\ub9ad</div>\n'
@@ -349,10 +417,12 @@ def build_card_html(
     card: CardSpec,
     image_path: str | None,
     total: int,
+    theme: ColorTheme | None = None,
 ) -> str:
     """Build a complete single-card HTML page based on card_type."""
     settings = get_settings()
     channel = settings.channel_name
+    th = theme or _THEMES["default"]
 
     img_uri = ""
     if image_path:
@@ -361,18 +431,17 @@ def build_card_html(
     ct = card.card_type
 
     if ct == "cover":
-        body = _build_cover(card, img_uri, total, channel)
+        body = _build_cover(card, img_uri, total, channel, th)
     elif ct == "content":
-        body = _build_content(card, img_uri, total)
+        body = _build_content(card, img_uri, total, th)
     elif ct == "tip":
-        body = _build_tip(card, total)
+        body = _build_tip(card, total, th)
     elif ct == "closing":
-        body = _build_closing(card, total)
+        body = _build_closing(card, total, th)
     elif ct == "cta":
-        body = _build_cta(card, total, channel)
+        body = _build_cta(card, total, channel, th)
     else:
-        # Fallback: treat unknown as content
-        body = _build_content(card, img_uri, total)
+        body = _build_content(card, img_uri, total, th)
 
     return _wrap_html(body)
 
@@ -389,14 +458,11 @@ class CardNewsGenerator:
         self._settings = get_settings()
 
     async def generate(self, youtube_url: str) -> CardNewsResult:
-        """Full pipeline: transcript -> cards -> images -> PNGs."""
-        # 1. Extract transcript
+        """YouTube convenience wrapper: extract transcript, then generate."""
         try:
             video_id = extract_video_id(youtube_url)
         except TranscriptError as exc:
             return CardNewsResult(success=False, error=str(exc))
-
-        logger.info("card_news_start", video_id=video_id)
 
         try:
             segments = fetch_transcript(video_id)
@@ -408,36 +474,65 @@ class CardNewsGenerator:
         if len(raw_text) > 3000:
             truncated += "...(이하 생략)"
 
-        # 2. Claude card planning
+        return await self.generate_from_text(
+            title=f"YouTube: {video_id}",
+            text=truncated,
+            source_id=video_id,
+        )
+
+    async def generate_from_text(
+        self,
+        title: str,
+        text: str,
+        source_id: str = "",
+    ) -> CardNewsResult:
+        """Core pipeline: any text -> cards -> images -> PNGs.
+
+        This is the universal entry point for all source types.
+        """
+        safe_id = source_id or title[:20].replace(" ", "_")
+        # Sanitize for filesystem
+        safe_id = "".join(c for c in safe_id if c.isalnum() or c in "-_.")
+        if not safe_id:
+            safe_id = "direct"
+
+        logger.info("card_news_start", source_id=safe_id)
+
+        # 1. Claude card planning
         try:
-            cards = await self._plan_cards(truncated, video_id)
+            cards, color_theme = await self._plan_cards(text, safe_id)
         except Exception as exc:
             err_detail = str(exc) or repr(exc)
-            logger.error("card_news_plan_failed", video_id=video_id, error=err_detail)
+            logger.error("card_news_plan_failed", source_id=safe_id, error=err_detail)
             return CardNewsResult(
                 success=False,
-                video_id=video_id,
+                video_id=safe_id,
                 error=f"Card planning failed ({type(exc).__name__}): {err_detail}",
             )
 
-        logger.info("card_news_planned", video_id=video_id, card_count=len(cards))
+        theme = _THEMES.get(color_theme, _THEMES["default"])
+        logger.info(
+            "card_news_planned",
+            source_id=safe_id, card_count=len(cards), theme=theme.name,
+        )
 
-        # 3. Generate background images (type-aware)
+        # 2. Generate background images (type-aware)
         image_map = await self._generate_images(cards)
-        logger.info("card_news_images_done", video_id=video_id, count=len(image_map))
+        logger.info("card_news_images_done", source_id=safe_id, count=len(image_map))
 
-        # 4-5. HTML -> Playwright PNG capture
-        output_dir = Path(f"output/card_news/{video_id}")
+        # 3. HTML -> Playwright PNG capture
+        output_dir = Path(f"output/card_news/{safe_id}")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        png_paths = await self._render_pngs(cards, image_map, output_dir)
-        logger.info("card_news_complete", video_id=video_id, pngs=len(png_paths))
+        png_paths = await self._render_pngs(cards, image_map, output_dir, theme)
+        logger.info("card_news_complete", source_id=safe_id, pngs=len(png_paths))
 
         return CardNewsResult(
             success=True,
-            video_id=video_id,
+            video_id=safe_id,
             card_count=len(cards),
             output_dir=str(output_dir),
+            color_theme=color_theme,
             cards=cards,
             image_paths=png_paths,
         )
@@ -448,14 +543,14 @@ class CardNewsGenerator:
 
     async def _plan_cards(
         self, transcript_text: str, video_id: str,
-    ) -> list[CardSpec]:
+    ) -> tuple[list[CardSpec], str]:
+        """Plan cards via Claude. Returns (cards, color_theme)."""
         if not self._settings.anthropic_api_key:
             raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
         user_msg = (
-            f"YouTube Video ID: {video_id}\n"
-            f"YouTube URL: https://www.youtube.com/watch?v={video_id}\n\n"
-            f"Transcript:\n{transcript_text}"
+            f"Source ID: {video_id}\n\n"
+            f"Content:\n{transcript_text}"
         )
 
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -477,10 +572,23 @@ class CardNewsGenerator:
             payload = resp.json()
 
         raw_text = extract_claude_text(payload)
-        card_list: list[dict[str, Any]] = parse_claude_json(raw_text)
+        parsed: Any = parse_claude_json(raw_text)
+
+        # Handle both formats: {color_theme, cards:[]} or plain []
+        color_theme = "default"
+        if isinstance(parsed, dict):
+            color_theme = parsed.get("color_theme", "default")
+            card_list = parsed.get("cards", [])
+        elif isinstance(parsed, list):
+            card_list = parsed
+        else:
+            raise ValueError(f"Unexpected Claude response type: {type(parsed).__name__}")
 
         if not isinstance(card_list, list) or len(card_list) == 0:
-            raise ValueError(f"Expected non-empty list from Claude, got {type(card_list).__name__}")
+            raise ValueError(f"Expected non-empty cards list from Claude")
+
+        if color_theme not in _VALID_THEMES:
+            color_theme = "default"
 
         cards: list[CardSpec] = []
         for item in card_list[:CARD_COUNT]:
@@ -499,7 +607,7 @@ class CardNewsGenerator:
                 card_type=card_type,
             ))
 
-        return cards
+        return cards, color_theme
 
     # ------------------------------------------------------------------
     # Stage 3: Image generation (type-aware strategy)
@@ -573,6 +681,7 @@ class CardNewsGenerator:
         cards: list[CardSpec],
         image_map: dict[int, str],
         output_dir: Path,
+        theme: ColorTheme | None = None,
     ) -> list[str]:
         """Render each card as HTML, capture with Playwright as PNG."""
         from playwright.async_api import async_playwright
@@ -587,7 +696,7 @@ class CardNewsGenerator:
 
             for card in cards:
                 img_path = image_map.get(card.index)
-                card_html = build_card_html(card, img_path, len(cards))
+                card_html = build_card_html(card, img_path, len(cards), theme)
 
                 # Write temp HTML and load via file:// protocol
                 tmp_html = output_dir / f"_card_{card.index:02d}.html"

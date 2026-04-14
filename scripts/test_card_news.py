@@ -38,6 +38,7 @@ async def main() -> None:
     print(f"Result: {'SUCCESS' if result.success else 'FAILED'}")
     print(f"Video ID: {result.video_id}")
     print(f"Cards: {result.card_count}")
+    print(f"Theme: {result.color_theme}")
     print(f"Output: {result.output_dir}")
 
     if result.error:
