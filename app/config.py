@@ -155,6 +155,9 @@ class Settings(BaseSettings):
     # Google AI (Gemini image generation)
     google_ai_api_key: str | None = Field(default=None, alias="GOOGLE_AI_API_KEY")
 
+    # Card News
+    channel_name: str = Field(default="판례의 정석", alias="CHANNEL_NAME")
+
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     comment_poll_interval_seconds: int = Field(
         default=300, alias="COMMENT_POLL_INTERVAL_SECONDS"

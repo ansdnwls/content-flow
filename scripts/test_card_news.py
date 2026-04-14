@@ -8,8 +8,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import io
 import sys
 from pathlib import Path
+
+# Fix Windows cp949 encoding for emoji output
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
