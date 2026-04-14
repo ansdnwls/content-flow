@@ -161,7 +161,7 @@ async def generate_vertex_image(
     prompt: str,
     dest: Path,
     *,
-    aspect_ratio: str = "4:5",
+    aspect_ratio: str = "9:16",
 ) -> Path | None:
     """Generate an image using Vertex AI Imagen 3.0 Fast via google-genai.
 
@@ -173,7 +173,7 @@ async def generate_vertex_image(
     Args:
         prompt: English image prompt.
         dest: Destination file path for the generated image.
-        aspect_ratio: Image aspect ratio (default "4:5" for 1080x1350 cards).
+        aspect_ratio: Image aspect ratio (default "9:16" for portrait cards).
     """
     import os
 
@@ -288,7 +288,7 @@ async def generate_image(
     prompt: str,
     dest: Path,
     *,
-    aspect_ratio: str = "4:5",
+    aspect_ratio: str = "9:16",
 ) -> Path | None:
     """Generate an image with 3-tier fallback.
 
