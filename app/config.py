@@ -155,6 +155,9 @@ class Settings(BaseSettings):
     # Google AI (Gemini image generation)
     google_ai_api_key: str | None = Field(default=None, alias="GOOGLE_AI_API_KEY")
 
+    # Google Cloud (Vertex AI)
+    google_cloud_project: str | None = Field(default=None, alias="GOOGLE_CLOUD_PROJECT")
+
     # Card News
     channel_name: str = Field(default="판례의 정석", alias="CHANNEL_NAME")
 

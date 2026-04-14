@@ -22,7 +22,7 @@ import httpx
 from app.config import get_settings
 from app.core.claude_utils import extract_claude_text, parse_claude_json
 from app.core.logging_config import get_logger
-from app.services.blog_image_generator import generate_gemini_image
+from app.services.blog_image_generator import generate_image
 from app.services.youtube_transcript import (
     TranscriptError,
     extract_video_id,
@@ -558,7 +558,7 @@ class CardNewsGenerator:
         self, prompt: str, dest: Path, index: int,
     ) -> str | None:
         """Generate a single image, return file path or None."""
-        result = await generate_gemini_image(prompt, dest)
+        result = await generate_image(prompt, dest)
         if result:
             return str(result)
         logger.warning("card_image_skip", index=index)

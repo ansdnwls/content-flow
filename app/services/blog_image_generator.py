@@ -147,57 +147,72 @@ async def download_pollinations_image(
     return None
 
 
-_VERTEX_PROJECT = "ytfactory-487714"
-_VERTEX_LOCATION = "us-central1"
+# ---------------------------------------------------------------------------
+# Vertex AI Imagen (primary — uses GCP credits via service account ADC)
+# WARNING: GCP 콘솔에서 예산 알림 설정 필수 ($10/$50/$100 3단계 권장)
+# https://console.cloud.google.com/billing/budgets?project=ytfactory-487714
+# ---------------------------------------------------------------------------
+
 _VERTEX_MODEL = "imagen-3.0-fast-generate-001"
+_VERTEX_LOCATION = "us-central1"
 
 
-async def generate_gemini_image(
+async def generate_vertex_image(
     prompt: str,
     dest: Path,
     *,
     aspect_ratio: str = "4:5",
 ) -> Path | None:
-    """Generate an image using Vertex AI Imagen 3.0 Fast.
+    """Generate an image using Vertex AI Imagen 3.0 Fast via google-genai.
 
-    Uses GCP service account credentials for billing via Cloud credits.
-    Falls back to None on failure (caller handles fallback chain).
+    Requires:
+    - GOOGLE_APPLICATION_CREDENTIALS env var pointing to service account JSON
+    - GOOGLE_CLOUD_PROJECT env var (or google_cloud_project in settings)
+    - roles/aiplatform.user on the service account
 
     Args:
         prompt: English image prompt.
         dest: Destination file path for the generated image.
         aspect_ratio: Image aspect ratio (default "4:5" for 1080x1350 cards).
     """
+    import os
+
     settings = get_settings()
+    project = settings.google_cloud_project
     sa_path = settings.google_service_account_json_path
+
+    if not project:
+        logger.debug("vertex_image_skip_no_project")
+        return None
     if not sa_path or not Path(sa_path).exists():
         logger.debug("vertex_image_skip_no_sa", path=sa_path)
         return None
 
+    # Ensure ADC env var is set for google-genai
+    os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", sa_path)
+
     try:
-        from google.oauth2 import service_account
-        import vertexai
-        from vertexai.preview.vision_models import ImageGenerationModel
+        from google import genai
+        from google.genai import types
 
-        credentials = service_account.Credentials.from_service_account_file(sa_path)
-
-        await asyncio.to_thread(
-            vertexai.init,
-            project=_VERTEX_PROJECT,
+        client = genai.Client(
+            vertexai=True,
+            project=project,
             location=_VERTEX_LOCATION,
-            credentials=credentials,
         )
 
-        model = ImageGenerationModel.from_pretrained(_VERTEX_MODEL)
         response = await asyncio.to_thread(
-            model.generate_images,
+            client.models.generate_images,
+            model=_VERTEX_MODEL,
             prompt=prompt,
-            number_of_images=1,
-            aspect_ratio=aspect_ratio,
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio=aspect_ratio,
+            ),
         )
 
-        if response.images:
-            img_bytes = response.images[0]._image_bytes
+        if response.generated_images:
+            img_bytes = response.generated_images[0].image.image_bytes
             dest.write_bytes(img_bytes)
             logger.info(
                 "vertex_image_generated",
@@ -214,21 +229,85 @@ async def generate_gemini_image(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Google AI Studio fallback (uses GOOGLE_AI_API_KEY, no GCP credits)
+# ---------------------------------------------------------------------------
+
+
+async def generate_gemini_image(
+    prompt: str,
+    dest: Path,
+) -> Path | None:
+    """Generate an image using Google AI Studio (Gemini).
+
+    Fallback when Vertex AI is unavailable. Uses GOOGLE_AI_API_KEY.
+    """
+    settings = get_settings()
+    if not settings.google_ai_api_key:
+        logger.debug("gemini_image_skip_no_api_key")
+        return None
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=settings.google_ai_api_key)
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-3.1-flash-image-preview",
+            contents=f"Generate an image: {prompt}",
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+            ),
+        )
+
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.data:
+                    dest.write_bytes(part.inline_data.data)
+                    logger.info(
+                        "gemini_image_generated",
+                        path=str(dest),
+                        size=len(part.inline_data.data),
+                    )
+                    return dest
+
+        logger.warning("gemini_image_no_result")
+    except Exception as exc:
+        logger.warning("gemini_image_failed", error=str(exc))
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Unified fallback chain: Vertex AI → Google AI Studio → pollinations.ai
+# ---------------------------------------------------------------------------
+
+
 async def generate_image(
     prompt: str,
     dest: Path,
     *,
     aspect_ratio: str = "4:5",
 ) -> Path | None:
-    """Generate an image: try Vertex AI Imagen first, fall back to pollinations.ai.
+    """Generate an image with 3-tier fallback.
 
-    Returns the saved file path, or None on failure.
+    1. Vertex AI Imagen 3.0 (GCP credits, service account)
+    2. Google AI Studio / Gemini (API key, no GCP credits)
+    3. pollinations.ai (free, lower quality)
     """
-    result = await generate_gemini_image(prompt, dest, aspect_ratio=aspect_ratio)
+    # Tier 1: Vertex AI
+    result = await generate_vertex_image(prompt, dest, aspect_ratio=aspect_ratio)
     if result:
         return result
 
-    logger.info("vertex_fallback_to_pollinations", prompt=prompt[:50])
+    # Tier 2: Google AI Studio
+    result = await generate_gemini_image(prompt, dest)
+    if result:
+        return result
+
+    # Tier 3: pollinations.ai
+    logger.info("fallback_to_pollinations", prompt=prompt[:50])
     return await download_pollinations_image(prompt, dest)
 
 
