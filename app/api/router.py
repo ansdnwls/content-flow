@@ -8,6 +8,7 @@ from app.api.v1 import (
     audit,
     billing,
     bombs,
+    card_news,
     comments,
     consent,
     domains,
@@ -66,3 +67,4 @@ api_router.include_router(ytboost_analytics.router)
 api_router.include_router(shopsync.router)
 api_router.include_router(sheets_upload.router)
 api_router.include_router(pipeline.router)
+api_router.include_router(card_news.router)
