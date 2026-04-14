@@ -10,6 +10,7 @@ Pipeline:
 from __future__ import annotations
 
 import asyncio
+import base64
 import html as html_mod
 import tempfile
 from dataclasses import dataclass, field
@@ -112,146 +113,113 @@ _CARD_PLANNING_SYSTEM = (
 # HTML templates
 # ---------------------------------------------------------------------------
 
-_HTML_HEAD = """\
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { width: {w}px; height: {h}px; overflow: hidden; font-family: 'Noto Sans KR', sans-serif; }
-
-.card {{ width: {w}px; height: {h}px; position: relative; overflow: hidden; }}
-
-/* FullBleed */
-.fullbleed {{ background-size: cover; background-position: center; }}
-.fullbleed .overlay {{
-  position: absolute; bottom: 0; left: 0; right: 0;
-  padding: 60px 64px 80px;
-  background: linear-gradient(transparent 0%, rgba(10,10,10,0.85) 40%, rgba(10,10,10,0.95) 100%);
-}}
-.fullbleed .title {{
-  font-family: 'Noto Serif KR', serif; font-size: 48px; font-weight: 900;
-  color: #FAFAFA; line-height: 1.25; margin-bottom: 20px;
-}}
-.fullbleed .body {{
-  font-size: 36px; font-weight: 300; color: rgba(250,250,250,0.85);
-  line-height: 1.55;
-}}
-
-/* Split */
-.split {{ display: flex; }}
-.split .text-area {{
-  width: 48%; background: #FAFAFA; padding: 80px 48px 80px 56px;
-  display: flex; flex-direction: column; justify-content: center;
-  position: relative;
-}}
-.split .image-area {{
-  width: 52%; background-size: cover; background-position: center;
-}}
-.split .title {{
-  font-family: 'Noto Serif KR', serif; font-size: 48px; font-weight: 900;
-  color: #0A0A0A; line-height: 1.25; margin-bottom: 20px;
-}}
-.split .body {{
-  font-size: 36px; font-weight: 300; color: #555; line-height: 1.55;
-}}
-
-/* TextOnly */
-.textonly {{
-  display: flex; flex-direction: column; justify-content: center;
-  align-items: center; text-align: center; padding: 80px 72px;
-}}
-.textonly.dark {{ background: #0A0A0A; }}
-.textonly.light {{ background: #FAFAFA; }}
-.textonly .title {{
-  font-family: 'Noto Serif KR', serif; font-size: 56px; font-weight: 900;
-  line-height: 1.25; margin-bottom: 32px;
-}}
-.textonly.dark .title {{ color: #FAFAFA; }}
-.textonly.light .title {{ color: #0A0A0A; }}
-.textonly .body {{
-  font-size: 36px; font-weight: 300; line-height: 1.55;
-}}
-.textonly.dark .body {{ color: rgba(250,250,250,0.85); }}
-.textonly.light .body {{ color: #555; }}
-
-/* Page number */
-.page-num {{
-  position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
-  font-size: 28px; font-weight: 300; letter-spacing: 3px;
-  color: rgba(250,250,250,0.5);
-}}
-.split .page-num {{
-  left: 24%; color: #999;
-}}
-.textonly.light .page-num {{ color: #999; }}
-</style>
-</head>
-<body>
-"""
-
-_HTML_TAIL = "</body></html>"
-
-
 def _esc(text: str) -> str:
     """HTML-escape text and convert newlines to <br>."""
     return html_mod.escape(text).replace("\n", "<br>")
 
 
-def _build_fullbleed_html(card: CardSpec, image_path: str | None, total: int) -> str:
-    bg = f'background-image: url("file:///{image_path}")' if image_path else "background: #0A0A0A"
-    return (
-        f'<div class="card fullbleed" style=\'{bg}\'>\n'
-        f'  <div class="overlay">\n'
-        f'    <div class="title">{_esc(card.title)}</div>\n'
-        f'    <div class="body">{_esc(card.body)}</div>\n'
-        f'  </div>\n'
-        f'  <div class="page-num">{card.index}/{total}</div>\n'
-        f'</div>\n'
-    )
+def _image_to_data_uri(file_path: str) -> str:
+    """Convert an image file to a base64 data URI."""
+    path = Path(file_path)
+    if not path.exists():
+        return ""
+    data = path.read_bytes()
+    suffix = path.suffix.lower()
+    mime = "image/png" if suffix == ".png" else "image/jpeg"
+    b64 = base64.b64encode(data).decode("ascii")
+    return f"data:{mime};base64,{b64}"
 
 
-def _build_split_html(card: CardSpec, image_path: str | None, total: int) -> str:
-    bg = f'background-image: url("file:///{image_path}")' if image_path else "background: #CCCCCC"
-    return (
-        f'<div class="card split">\n'
-        f'  <div class="text-area">\n'
-        f'    <div class="title">{_esc(card.title)}</div>\n'
-        f'    <div class="body">{_esc(card.body)}</div>\n'
-        f'    <div class="page-num">{card.index}/{total}</div>\n'
-        f'  </div>\n'
-        f'  <div class="image-area" style=\'{bg}\'></div>\n'
-        f'</div>\n'
-    )
+def build_card_html(
+    card: CardSpec,
+    image_path: str | None,
+    total: int,
+) -> str:
+    """Build a complete single-card HTML page with all styles inlined."""
+    w = CARD_WIDTH
+    h = CARD_HEIGHT
 
+    # Convert image to base64 data URI (no file:// paths)
+    img_data_uri = ""
+    if image_path:
+        img_data_uri = _image_to_data_uri(image_path)
 
-def _build_textonly_html(card: CardSpec, total: int) -> str:
-    theme = "light" if card.index % 2 == 0 else "dark"
-    return (
-        f'<div class="card textonly {theme}">\n'
-        f'  <div class="title">{_esc(card.title)}</div>\n'
-        f'  <div class="body">{_esc(card.body)}</div>\n'
-        f'  <div class="page-num">{card.index}/{total}</div>\n'
-        f'</div>\n'
-    )
-
-
-def build_card_html(card: CardSpec, image_path: str | None, total: int) -> str:
-    """Build a complete single-card HTML page."""
-    head = _HTML_HEAD.replace("{w}", str(CARD_WIDTH)).replace("{h}", str(CARD_HEIGHT))
-
+    # Build card body based on layout
     if card.layout == "fullbleed":
-        body = _build_fullbleed_html(card, image_path, total)
+        bg_style = f"background-image:url('{img_data_uri}');" if img_data_uri else "background:#0A0A0A;"
+        card_body = (
+            f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
+            f'background-size:cover;background-position:center;{bg_style}">\n'
+            f'  <div style="position:absolute;bottom:0;left:0;right:0;'
+            f'padding:60px 64px 80px;'
+            f'background:linear-gradient(transparent 0%,rgba(10,10,10,0.85) 40%,rgba(10,10,10,0.95) 100%);">\n'
+            f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:48px;font-weight:900;'
+            f'color:#FAFAFA;line-height:1.25;margin-bottom:20px;">{_esc(card.title)}</div>\n'
+            f'    <div style="font-size:36px;font-weight:300;color:rgba(250,250,250,0.85);'
+            f'line-height:1.55;">{_esc(card.body)}</div>\n'
+            f'  </div>\n'
+            f'  <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);'
+            f'font-size:28px;font-weight:300;letter-spacing:3px;'
+            f'color:rgba(250,250,250,0.5);">{card.index}/{total}</div>\n'
+            f'</div>\n'
+        )
     elif card.layout == "split":
-        body = _build_split_html(card, image_path, total)
+        bg_style = f"background-image:url('{img_data_uri}');" if img_data_uri else "background:#CCCCCC;"
+        card_body = (
+            f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;display:flex;">\n'
+            f'  <div style="width:48%;background:#FAFAFA;padding:80px 48px 80px 56px;'
+            f'display:flex;flex-direction:column;justify-content:center;position:relative;">\n'
+            f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:48px;font-weight:900;'
+            f'color:#0A0A0A;line-height:1.25;margin-bottom:20px;">{_esc(card.title)}</div>\n'
+            f'    <div style="font-size:36px;font-weight:300;color:#555;'
+            f'line-height:1.55;">{_esc(card.body)}</div>\n'
+            f'    <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);'
+            f'font-size:28px;font-weight:300;letter-spacing:3px;color:#999;">{card.index}/{total}</div>\n'
+            f'  </div>\n'
+            f'  <div style="width:52%;background-size:cover;background-position:center;'
+            f'{bg_style}"></div>\n'
+            f'</div>\n'
+        )
     else:
-        body = _build_textonly_html(card, total)
+        # textonly
+        is_dark = card.index % 2 != 0
+        bg_color = "#0A0A0A" if is_dark else "#FAFAFA"
+        title_color = "#FAFAFA" if is_dark else "#0A0A0A"
+        body_color = "rgba(250,250,250,0.85)" if is_dark else "#555"
+        page_color = "rgba(250,250,250,0.5)" if is_dark else "#999"
+        card_body = (
+            f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
+            f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
+            f'text-align:center;padding:80px 72px;background:{bg_color};">\n'
+            f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:56px;font-weight:900;'
+            f'color:{title_color};line-height:1.25;margin-bottom:32px;">{_esc(card.title)}</div>\n'
+            f'  <div style="font-size:36px;font-weight:300;color:{body_color};'
+            f'line-height:1.55;">{_esc(card.body)}</div>\n'
+            f'  <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);'
+            f'font-size:28px;font-weight:300;letter-spacing:3px;color:{page_color};">{card.index}/{total}</div>\n'
+            f'</div>\n'
+        )
 
-    return head + body + _HTML_TAIL
+    return (
+        '<!DOCTYPE html>\n'
+        '<html lang="ko">\n'
+        '<head>\n'
+        '<meta charset="UTF-8">\n'
+        '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
+        '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+        '<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@700;900'
+        '&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">\n'
+        '<style>\n'
+        f'* {{ margin:0; padding:0; box-sizing:border-box; }}\n'
+        f'body {{ width:{w}px; height:{h}px; overflow:hidden; '
+        f"font-family:'Noto Sans KR',sans-serif; }}\n"
+        '</style>\n'
+        '</head>\n'
+        '<body>\n'
+        + card_body +
+        '</body>\n'
+        '</html>'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -450,20 +418,17 @@ class CardNewsGenerator:
 
             for card in cards:
                 img_path = image_map.get(card.index)
-                # Normalize path separators for file:/// URL
-                if img_path:
-                    img_path = img_path.replace("\\", "/")
-
                 card_html = build_card_html(card, img_path, len(cards))
 
-                # Write temp HTML and load it
+                # Write temp HTML and load via file:// protocol
                 tmp_html = output_dir / f"_card_{card.index:02d}.html"
                 tmp_html.write_text(card_html, encoding="utf-8")
 
                 await page.goto(f"file:///{tmp_html.resolve().as_posix()}")
-                # Wait for fonts to load
+                # Wait for Google Fonts to load
                 await page.wait_for_load_state("networkidle")
-                await page.wait_for_timeout(500)
+                # Extra wait for font rendering to complete
+                await page.wait_for_timeout(1000)
 
                 png_path = output_dir / f"card_{card.index:02d}.png"
                 await page.screenshot(path=str(png_path), type="png")
