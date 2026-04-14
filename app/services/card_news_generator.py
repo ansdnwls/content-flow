@@ -130,6 +130,10 @@ def _image_to_data_uri(file_path: str) -> str:
     return f"data:{mime};base64,{b64}"
 
 
+_ACCENT_COLOR = "#3B82F6"  # brand blue
+_PAD_LR = 80  # uniform left/right padding
+
+
 def build_card_html(
     card: CardSpec,
     image_path: str | None,
@@ -138,65 +142,102 @@ def build_card_html(
     """Build a complete single-card HTML page with all styles inlined."""
     w = CARD_WIDTH
     h = CARD_HEIGHT
+    pad = _PAD_LR
 
-    # Convert image to base64 data URI (no file:// paths)
+    # Convert image to base64 data URI
     img_data_uri = ""
     if image_path:
         img_data_uri = _image_to_data_uri(image_path)
 
-    # Build card body based on layout
-    if card.layout == "fullbleed":
-        bg_style = f"background-image:url('{img_data_uri}');" if img_data_uri else "background:#0A0A0A;"
+    # Accent line under title (shared HTML snippet)
+    accent_line = (
+        f'<div style="width:40px;height:2px;background:{_ACCENT_COLOR};'
+        f'margin:16px 0 20px;"></div>\n'
+    )
+    accent_line_center = (
+        f'<div style="width:40px;height:2px;background:{_ACCENT_COLOR};'
+        f'margin:16px auto 20px;"></div>\n'
+    )
+
+    # Page number (bottom-right, small)
+    def _page_num(color: str) -> str:
+        return (
+            f'<div style="position:absolute;bottom:28px;right:32px;'
+            f'font-size:24px;font-weight:300;letter-spacing:2px;'
+            f'color:{color};">{card.index}/{total}</div>\n'
+        )
+
+    # Resolve layout: split without image falls back to textonly
+    layout = card.layout
+    if layout == "split" and not img_data_uri:
+        layout = "textonly"
+
+    is_cta = card.card_type == "cta" or card.index == total
+
+    if layout == "fullbleed":
+        if img_data_uri:
+            bg_style = f"background-image:url('{img_data_uri}');"
+        else:
+            bg_style = f"background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);"
         card_body = (
             f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
             f'background-size:cover;background-position:center;{bg_style}">\n'
             f'  <div style="position:absolute;bottom:0;left:0;right:0;'
-            f'padding:60px 64px 80px;'
+            f'padding:60px {pad}px 80px;'
             f'background:linear-gradient(transparent 0%,rgba(10,10,10,0.85) 40%,rgba(10,10,10,0.95) 100%);">\n'
             f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:48px;font-weight:900;'
-            f'color:#FAFAFA;line-height:1.25;margin-bottom:20px;">{_esc(card.title)}</div>\n'
+            f'color:#FAFAFA;line-height:1.25;">{_esc(card.title)}</div>\n'
+            f'    {accent_line}'
             f'    <div style="font-size:36px;font-weight:300;color:rgba(250,250,250,0.85);'
             f'line-height:1.55;">{_esc(card.body)}</div>\n'
             f'  </div>\n'
-            f'  <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);'
-            f'font-size:28px;font-weight:300;letter-spacing:3px;'
-            f'color:rgba(250,250,250,0.5);">{card.index}/{total}</div>\n'
+            f'  {_page_num("rgba(250,250,250,0.4)")}'
             f'</div>\n'
         )
-    elif card.layout == "split":
-        bg_style = f"background-image:url('{img_data_uri}');" if img_data_uri else "background:#CCCCCC;"
+    elif layout == "split":
         card_body = (
             f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;display:flex;">\n'
-            f'  <div style="width:48%;background:#FAFAFA;padding:80px 48px 80px 56px;'
+            f'  <div style="width:48%;background:#FAFAFA;padding:80px {pad}px;'
             f'display:flex;flex-direction:column;justify-content:center;position:relative;">\n'
             f'    <div style="font-family:\'Noto Serif KR\',serif;font-size:48px;font-weight:900;'
-            f'color:#0A0A0A;line-height:1.25;margin-bottom:20px;">{_esc(card.title)}</div>\n'
+            f'color:#0A0A0A;line-height:1.25;">{_esc(card.title)}</div>\n'
+            f'    {accent_line}'
             f'    <div style="font-size:36px;font-weight:300;color:#555;'
             f'line-height:1.55;">{_esc(card.body)}</div>\n'
-            f'    <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);'
-            f'font-size:28px;font-weight:300;letter-spacing:3px;color:#999;">{card.index}/{total}</div>\n'
+            f'    {_page_num("#bbb")}'
             f'  </div>\n'
             f'  <div style="width:52%;background-size:cover;background-position:center;'
-            f'{bg_style}"></div>\n'
+            f"background-image:url('{img_data_uri}');\"></div>\n"
             f'</div>\n'
         )
     else:
-        # textonly
-        is_dark = card.index % 2 != 0
-        bg_color = "#0A0A0A" if is_dark else "#FAFAFA"
-        title_color = "#FAFAFA" if is_dark else "#0A0A0A"
-        body_color = "rgba(250,250,250,0.85)" if is_dark else "#555"
-        page_color = "rgba(250,250,250,0.5)" if is_dark else "#999"
+        # textonly — with gradient backgrounds
+        if is_cta:
+            bg = f"background:linear-gradient(135deg,{_ACCENT_COLOR} 0%,#1d4ed8 100%);"
+            title_color = "#FFFFFF"
+            body_color = "rgba(255,255,255,0.9)"
+            page_color = "rgba(255,255,255,0.4)"
+        elif card.index % 2 != 0:
+            bg = "background:linear-gradient(180deg,#0A0A0A 0%,#1a1a1a 100%);"
+            title_color = "#FAFAFA"
+            body_color = "rgba(250,250,250,0.85)"
+            page_color = "rgba(250,250,250,0.4)"
+        else:
+            bg = "background:linear-gradient(180deg,#FAFAFA 0%,#EEEEEE 100%);"
+            title_color = "#0A0A0A"
+            body_color = "#555"
+            page_color = "#bbb"
+
         card_body = (
             f'<div style="width:{w}px;height:{h}px;position:relative;overflow:hidden;'
             f'display:flex;flex-direction:column;justify-content:center;align-items:center;'
-            f'text-align:center;padding:80px 72px;background:{bg_color};">\n'
+            f'text-align:center;padding:{pad}px;{bg}">\n'
             f'  <div style="font-family:\'Noto Serif KR\',serif;font-size:56px;font-weight:900;'
-            f'color:{title_color};line-height:1.25;margin-bottom:32px;">{_esc(card.title)}</div>\n'
+            f'color:{title_color};line-height:1.25;">{_esc(card.title)}</div>\n'
+            f'  {accent_line_center}'
             f'  <div style="font-size:36px;font-weight:300;color:{body_color};'
             f'line-height:1.55;">{_esc(card.body)}</div>\n'
-            f'  <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);'
-            f'font-size:28px;font-weight:300;letter-spacing:3px;color:{page_color};">{card.index}/{total}</div>\n'
+            f'  {_page_num(page_color)}'
             f'</div>\n'
         )
 
